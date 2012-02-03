@@ -1,0 +1,97 @@
+{  -----------------------------------------
+  -- eliminacja wywołań i gałęzi ogonowych -- 
+   -----------------------------------------  }
+
+
+{ w kodzie szukamy wystąpień AP i SEL; jeśli po takowym wypada już tylko ,,unbind-rtn-block''
+  to znaczy że mamy do czynienia z ogonem i że należy przeprowadzić jego eliminację.
+  -------------------------------------------------------------------------------------------
+  kod się rozgałęzia w argumnencie LDC i w argumentach SEL więc trzeba je z osobna sprawdzać. }
+
+(! eliminate-tail-calls (^ (code)
+   			   (? ((empty? code) {->} ())
+			      ((= (. code) 'AP) {->} (try-ap2trap code))
+			      ((= (. code) 'SEL) {->} (try-sel2ser code))
+			      ((= (. code) 'LDC) {->} (; 'LDC
+			      	     	   	         (; (eliminate-tail-calls (., code))
+						            (eliminate-tail-calls (, code)))))
+			      (T {->} (apd (first-command code)
+			      	           (eliminate-tail-calls (rest-commands code))))
+			   )))
+			      
+
+{ skoro zaczyna się od AP to należy sprawdzić czy nie jest to wywołanie ogonowe;
+  jeśli jest to sprawa jest prosta - trzeba wziąć wszystko co jest po AP, czyli
+  ten ,,unbind-rtn-block'' i zamienić w nim ostatni element z RTN na TRAP. }
+
+(! try-ap2trap (^ (code)
+   	       	  (if (is-unbind-rtn-block? (, code))
+		      (replace-last-element (, code) 'TRAP)
+		      (; 'AP (eliminate-tail-calls (, code))))))
+
+
+(! try-sel2ser (^ (code)
+   	       	  (if (is-unbind-rtn-block? (, code))
+		      (replace-last-elem (, code) 'TRAP)
+		      (; 'AP (eliminate-tail-calls (, code))))))
+
+
+{ troszkę tam rozpoznawania kawałków kodu. }
+
+(! is-unbind-rtn-block? (^ (code)
+   			   (? ((= code ()) {->} ())
+			      ((= (. code) 'RTN) {->} (= (, code) ()))
+			      ((= (. code) 'UNBIND) {->} (is-unbind-rtn-block? (,, code)))
+			      (T {->} ())
+			   )))
+
+
+(! opcode-arity (^ (op)
+   		   (? ((= op 'SEL) {->} 2)
+		      ((= op 'SER) {->} 2)
+		      ((= op 'LDC) {->} 1)
+		      ((= op 'LU) {->} 1)
+		      ((= op 'BIND) {->} 1)
+		      ((= op 'UNBIND) {->} 1)
+		      (T {->} 0))))
+
+
+(! first-command (^ (code)
+   		    (first-n code (+ (opcode-arity (. code)) 1))))
+
+
+(! rest-commands (^ (code)
+   		    (nth-tail code (+ (opcode-arity (. code)) 1))))
+
+
+{ klasyka: }
+
+(! ., (^ (e) (. (, e))))
+(! ,, (^ (e) (, (, e))))
+(! apd (^ (a b) (if (empty? a) b (; (. a) (apd (, a) b)))))
+
+
+{ n-ty ogon listy, tj wszystkie prócz n pierwszych jej elementów }
+
+(! nth-tail (^ (list n)
+   	       (if (= n 0)
+	       	   list
+		   (nth-tail (, list) (- n 1)))))
+
+
+{ lista pierwszych n elementów listy }
+
+(! first-n (^ (list n)
+   	      (if (= n 0)
+	      	  ()
+		  (; (. list) (first-n (, list) (- n 1))))))
+
+
+{ znajduje ostatni element listy i podmienia go wyrażeniem e.
+  (zakłada się że zadana lista jest niepusta!) }
+
+(! replace-last-element (^ (list e)
+   			   (if (= (, list) ())
+			       (; e ())
+			       (; (. list) (replace-last-element (, list) e)))))
+

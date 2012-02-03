@@ -1,0 +1,240 @@
+{ ----------------------------------------
+  - metaokólny interpreter drcz0 w drcz0 -
+  ---------------------------------------- }
+
+
+{ - składniowe skróty - }
+
+(! .. (^ (e) (. (. e))))
+(! ,. (^ (e) (, (. e))))
+(! ., (^ (e) (. (, e))))
+(! .,, (^ (e) (. (, (, e)))))
+(! .,,, (^ (e) (. (, (, (, e))))))
+
+(! list3 (^ (a b c) (; a (; b (; c ())))))
+(! list4 (^ (a b c d) (; a (; b (; c (; d ()))))))
+
+(! empty? (^ (e) (= e ())))
+
+
+{ - standardowe procedury - }
+
+(! member? (^ (e l)
+   	      (if (empty? l)
+	      	  ()
+		  (if (= e (. l))
+		      T
+		      (member? e (, l))))))
+
+(! append (^ (a b)
+   	     (if (empty? a)
+	     	 b
+		 (; (. a) (append (, a) b)))))
+
+(! pair (^ (a b)
+   	   (if (empty? a)
+	       ()
+	       (; (; (. a) (. b))
+	       	  (pair (, a) (, b))))))
+
+
+{ - klasyfikowanie wyrażeń do kategorii semantycznych (stałe, zmienne, kombinacje) - }
+
+(! is-constant? (^ (expr)
+   		   (if (@ expr)
+		       (if (empty? expr)
+		       	   T
+			   (if (= expr 'T)
+			       T
+			       (if (is-primop? expr)
+			       	   T
+				   (# expr))))
+		       (is-procedure? expr))))
+
+(! is-procedure? (^ (expr)
+   		    (if (@ expr)
+		    	()
+			(= (. expr) ':proc))))
+
+
+(! is-lambda-form? (^ (expr)
+   		      (if (@ expr)
+		    	  ()
+			  (= (. expr) '^))))
+
+
+(! primopnames '(; . , # @ = disp read + - * / % > <))
+
+(! is-primop? (^ (expr)
+   	      	 (if (@ expr)		     
+		     (member? expr primopnames)
+		     ())))
+
+(! is-variable? (^ (expr)
+   		   (if (@ expr)
+		       (if (# expr)
+		       	   ()
+			   T)
+		       ())))
+
+(! is-quote-form? (^ (expr)
+    	       	     (if (@ expr)
+		         ()
+		         (= (. expr) 'quote))))
+
+(! is-define-form? (^ (expr)
+    	       	      (if (@ expr)
+		          ()
+		          (= (. expr) '!))))
+
+(! is-if-form? (^ (expr)
+    	       	  (if (@ expr)
+		      ()
+		      (= (. expr) 'if))))
+
+
+{ - "akcesory" dla form specjalnych - }
+
+(! quoted-expr (^ (form) (., form)))
+
+(! definiens (^ (form) (., form)))
+(! definiendum (^ (form) (.,, form)))
+
+(! lambda-arglist (^ (expr) (., expr)))
+(! lambda-body (^ (expr) (.,, expr)))
+
+(! if-conditional (^ (form) (., form)))
+(! if-ifbranch (^ (form) (.,, form)))
+(! if-elsebranch (^ (form) (.,,, form)))
+
+
+{ - + dla 'zwykłych kombinacji' - }
+
+(! rator (^ (e) (. e)))
+(! rands (^ (e) (, e)))
+
+
+{ - i jeszcze (wyłącznie dla wewnętrznej reprezentacji) "konstruktor"+"akcesory" dla procedur - }
+
+(! new-procedure (^ (arglist body env) (list3 ':proc arglist body)))
+(! proc-arglist (^ (expr) (., expr)))
+(! proc-body (^ (expr) (.,, expr)))
+
+
+{ - środowiska - }
+
+(! lookup (^ (sym env)
+   	     (if (empty? env)
+	     	 ()
+		 (if (= sym (.. env))
+		     (,. env)
+		     (lookup sym (, env))))))
+
+(! new-env (^ (sym val env)
+   	      (; (; sym val) env)))
+
+
+{ - sam ewaluator - }
+
+(! eval (^ (expr env)
+   	   (if (is-constant? expr)
+	       expr
+	       (if (is-lambda-form? expr)
+	       	   (new-procedure (lambda-arglist expr) (lambda-body expr) env)
+	           (if (is-variable? expr)
+	      	       (lookup expr env)
+		       (if (is-quote-form? expr)
+		       	   (quoted-expr expr)
+		      	   (if (is-define-form? expr)
+		      	       (repl-update-env (definiens expr)
+			       			(eval (definiendum expr) env)
+						env)
+		      	       (if (is-if-form? expr)
+			       	   (eval-if (if-conditional expr)
+				   	    (if-ifbranch expr)
+					    (if-elsebranch expr)
+					    env)
+		       		   (apply (eval (rator expr) env)
+				   	  (evlis (rands expr) env) env)))))))))
+
+
+(! evlis (^ (list env)
+   	    (if (empty? list)
+	    	()
+		(; (eval (. list) env)
+		   (evlis (, list) env)))))
+
+
+(! eval-if (^ (cond ifbr elsebr env)
+   	      (if (eval cond env)
+	      	  (eval ifbr env)
+		  (eval elsebr env))))
+
+
+(! apply (^ (op args env)
+   	    (if (empty? op)
+	    	'(ERROR: cannot apply nil)
+	    	(if (= op 'T)
+		    '(ERROR: cannot apply T)
+		    (if (# op)
+		    	'(ERROR: cannot apply numeral)
+	    		(if (is-primop? op)
+			    (apply-prim op args)
+			    (if (is-procedure? op)
+		    	    	(eval (proc-body op)
+		    	  	      (append (pair (proc-arglist op) args)
+			  	  	      env))
+				(apply (eval op env) args env))))))))
+
+
+(! apply-prim (^ (op args)
+   	      	 (if (= op ';)
+		     (; (. args) (. (, args)))
+		     (if (= op '.)
+		     	 (. (. args))
+			 (if (= op ',)
+			     (, (. args))
+			     (if (= op '#)
+			     	 (# (. args))
+				 (if (= op '@)
+				     (@ (. args))
+				     (if (= op '=)
+				     	 (= (. args) (. (, args)))
+					 (if (= op 'read)
+					     (read)
+					     (if (= op 'disp)
+					     	 (disp (. args))
+						 (if (= op '+)
+						     (+ (. args) (. (, args)))
+						     (if (= op '-)
+						     	 (- (. args) (. (, args)))
+						 	 (if (= op '*)
+						     	     (* (. args) (. (, args)))
+							     (if (= op '/)
+						     	     	 (/ (. args) (. (, args)))
+								 (if (= op '%)
+						     		     (% (. args) (. (, args)))
+						 		     (if (= op '>)
+						     		     	 (> (. args) (. (, args)))
+								     	 (if (= op '<)
+						     			     (< (. args) (. (, args)))
+									     '(ERR (unknown primop)))))))))))))))))))
+				  
+
+
+
+{ - pętla REPL - }
+
+(! repl (^ (sideeffect env)
+   	   (repl (disp (eval (read) env)) env)))
+
+(! repl-update-env (^ (sym val env)
+   		      (repl (disp (list4 'new 'meaning 'for sym)) (new-env sym val env))))
+
+(! run (^ ()
+       	  ((^ (step1 step2 step3) (repl (disp 'READY.) ()))
+	   (disp '(--------- INTERPRETER DRCZ-0 ------------)) {step1}
+	   (disp '(- MMXI Gdańsk, M.J.Stanczyk, drcz@o2.pl -)) {step2}
+	   (disp '(-----------------------------------------)) {step3}
+	  )))
+	    

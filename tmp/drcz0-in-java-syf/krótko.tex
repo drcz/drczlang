@@ -1,0 +1,926 @@
+\documentclass[a4paper]{article}
+
+\usepackage{polski}
+\usepackage[utf8]{inputenc}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{url}
+
+\title{Implementacja aplikatywnego, gorliwie ewaluującego języka programowania w Javie.}
+\author{Michał Stańczyk}
+\date{2011.12.27}
+\setlength{\parskip}{8pt} 
+\setlength{\parindent}{3pt}
+\newtheorem{lm}{Lemat}
+\newtheorem*{tw}{Twierdzenie}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Zaprezentujemy dwie implementacje aplikatywnego, gorliwie ewaluującego języka (meta)programowania \emph{drcz0}:
+za pomocą bezpośredniego, naiwnego interpretera, oraz za pomocą maszyny wirtualnej \emph{SrECD}. Zaprezentujemy kilka
+program w \emph{drcz0}: metaokólny interpreter, kompilator, pokażemy też jak rozbudować jego składnię (\emph{drcz1}).
+\end{abstract}
+
+\begin{flushright}
+ \emph{,,Większość języków programowania to po części środki wyrażania rzeczy w kategoriach innych
+ rzeczy, po części zaś podstawowe zbiory rzeczy danych.''}\footnote{Oryg.: \emph{Most programming
+languages are partly a way of expressing things in terms of other things and partly a basic set of
+given things.}, \cite{Next700} }\\
+Peter Landin
+\end{flushright}
+
+
+\section{Wstęp}
+
+Język drcz0 jest minimalistycznym dialektem LISPu, służącym jako narzędzie do badań nad językami programowania,
+w szczególności nadkompilacją (ang. \emph{supercompilation}), i dowodzeniem o własnościach programów i ich
+transformacji; powstał w ramach hobbystycznego projektu \cite{drczlang}.
+
+Język realizuje podstawieniowy model obliczeń w oparciu o uniwersalną strukturę danych, tzw. S-wyrażenia
+(wyrażenia symboliczne), zaproponowaną po raz pierwszy przez McCarthy'ego w \cite{McCarthy1960}.
+Zalicza się do języków funkcyjnych, a cechuje gorliwą ewaluacją.
+
+
+\section{S-wyrażenia}
+
+W ogólności klasa S-wyrażeń nad ustalonym zbiorem atomów A to przekrój wszystkich klas zawierających
+zbiór A i domkniętych na branie par uporządkowanych; w ramach klasycznego drcz0 za zbiór atomów przyjmujemy
+numerały zmiennoprzecinkowe, tzw. symbole (ciągi znaków alfanumerycznych oraz niebiałych znaków specjalnych
+$+$,$*$,$?$ itp.), oraz specjalny znacznik listy pustej $()$ (w systemach LISPowych często nazywany \emph{NIL}).
+
+W ujęciu syntaktycznym klasa S-wyrażeń to klasa wyrażeń czyniących zadość następującej gramatyce:
+
+\begin{verbatim}
+           SExp := () | Num | Sym | Cons
+            Num := <Double>
+            Sym := <String, bez znaków białych>
+           Cons := [ SExp . SExp ]
+
+\end{verbatim}
+
+Ze względu na tak przyjętą notację S-wyrażenia z klasy Cons nazywamy czasem ,,parami kropkowanymi''.
+
+Przykłady poprawnych S-wyrażeń: $4.6692$, $symbol?$, $[2 \cdot 3]$,
+$[ Abc \cdot [1 \cdot -1]]$.
+
+
+Do najważniejszych własności S-wyrażeń zaliczamy bardzo prostą formalizację\footnote{Np Steele i Sussman
+\cite{ArtOfInterpreter}, notatka ,,S-expressions postulates and notations''.}, oraz łatwość kodowania zarówno
+ogromnej klasy struktur danych, jak i samych procedur ujmujących funkcje rekursywne na
+S-wyrażeniach\footnote{Niestety z braku miejsca szczegóły (porywającej i pięknej) formalnej teorii
+leżącej u podstaw projektu drczlang zamieścimy gdzie indziej.}.
+
+Podstawową strukturą danych w drcz0 są (jak w każdym języku LISPo-poodobnym) listy jednokierunkowe
+(potencjalnie zagnieżdżone). Przyjętą konwencją kodowania list jest używanie atomu $()$ za znak
+listy pustej, oraz pary $[ \alpha \cdot \beta ]$ za listę o główce reprezentowanej przez wyrażenie $\alpha$,
+oraz ogonku reprezentowanym przez wyrażenie $\beta$\footnote{W obrębie całej pracy litery greckie stosujemy
+na oznaczenie miejsc w S-wyrażeniach, w których stoją pewne S-podwyrażenia, przy czym w obrębie jednego S-wyrażenia
+ta sama litera stoi za to samo S-podwyrażenie ; niekoniecznie jednak dwie różne litery muszą stać za dwa różne
+S-podwyrażenia.}.
+I tak np. listę trójelementową $(A \; B \; C)$ kodujemy jako S-wyrażenie $[A \cdot [B \cdot [C \cdot ()]]]$.
+
+
+\section{Operacje na S-wyrażeniach}
+
+Do elementarnych operacji na S-wyrażeniach zaliczamy dwa predykaty unarne \emph{Num?}, \emph{Atom?},
+rozstrzygające czy ich argument jest odpowiednio numerałem, atomem; jeden predykat binarny \emph{Eq?}
+rozstrzygający czy jego argumenty są identycznymi atomami; dwa akcesory \emph{Car} i \emph{Cdr} określone
+jedynie na S-wyrażeniach nieatomowych i podających odpowiednio poprzednik i następnik pary kropkowanej,
+oraz konstruktor (dwuargumentowy) \emph{Cons} utwarzający parę kropkowaną.
+Dodatkowo, w związku z zawieraniem się wśród atomów klasy liczb zmiennoprzecinkowych przyjmujemy za
+elementarne operacje również operatory arytmetyczne $+$, $-$, $*$, $/$, $mod$, oraz predykaty binarne $<$
+i $>$.
+
+
+\section{Ewaluacja S-wyrażeń}
+
+Implementacje języka drcz0 sprowadzają się do klasycznej pętli REPL\footnote{Read-Eval-Print-Loop, arcyprzyjazny
+tryb pracy polegający na ,,dialogu z maszyną'', charakterystyczny dla języków LISPopodobnych, jak również
+takich cacuszek jak Ruby, Smalltalk, Perl, Scala czy FORTH.}, gdzie funkcja wartościowania spełnia następujące
+postulaty:
+
+\begin{enumerate}
+\item wartością atomu $()$ jest on sam,
+\item wartością numerału jest on sam,
+\item wartością symbolu jest przyporządkowana mu w lokalnym kontekście\footnote{Lokalny kontekst to 
+odwzorowanie z symboli w S-wyrażenia, przy czym pierwotnym stanem kontekstu jest odwzorowanie symbolu $T$,
+oraz symboli reprezentujących operacje elementarne w siebie, oraz wszystkich innych symboli w atom $()$;
+Zmian kontekstu dokonuje się globalnie poprzez formy definicyjne oraz lokalnie poprzez aplikacje obiektów
+proceduralnych - zob.dalej.} wartość,
+\item wartością listy postaci $(quote \; \alpha)$ jest S-wyrażenie $\alpha$\footnote{Taką listę nazywamy
+\emph{formą cytującą}.},
+\item wartością listy postaci $(if \; \alpha \; \beta \; \gamma)$ jest wartość wyrażenia $\gamma$, jeśli wartością
+wyrażenia $\alpha$ jest $()$, lub wartość wyrażenia $\beta$ w przeciwnym razie\footnote{... \emph{formą warunkową}},
+\item wartością listy postaci $(\wedge \; \alpha \; \beta)$, gdzie $\alpha$ reprezentuje listę $0$ lub więcej symboli,
+jest \emph{obiekt proceduralny o liście argumentów $\alpha$ i ciele $\beta$}\footnote{... \emph{formą lambda}},
+\item wartością listy postaci $(\alpha \; \beta_1 ... \beta_n)$ jest aplikacja do wartości wyrażeń
+$\beta_1 ... \beta_n$: albo elementarnej operacji, jeśli wartość $\alpha$ jest symbolem reprezentującym
+op.elementarną\footnote{Zob.dalej}, bądź obiektu proceduralnego, jeśli wartością $\alpha$ jest obiekt
+proceduralny; w innych wypadkach (np gdy wartością $\alpha$ jest $()$ lub numerał) wyrażenie nie posiada
+wartości (np. interepreter zgłasza błąd).
+\end{enumerate}
+
+Aplikacja obiektu proceduralnego o liście argumentów $(\alpha_1 ... \alpha_n)$ oraz ciele $\gamma$
+do wyrażeń $\beta_1 ... \beta_n$ polega na wyznaczeniu wartości wyrażenia $\gamma$ w kontekście rozszerzonym
+o znaczenia: $\beta_1$ dla symbolu $\alpha_1$, ... , $\beta_n$ dla symbolu $\alpha_n$.
+
+Symbole reprezentujące operacje elementarne zamieszczamy w poniższej tabelce:
+
+
+\begin{tabular} {r|l}
+Num? & $\#$\\
+\hline
+Atom? & $@$ \\
+\hline
+Eq? & $=$\\
+\hline
+Car & $.$ \\
+\hline
+Cdr & $,$ \\
+\hline
+Cons & $;$ \\
+\end{tabular}
+
+Przyjmujemy też (zwyczajowo), że predykaty zwracają symbol $T$ w wypadku spełnienie, oraz $()$ w przeciwnym razie.
+
+Dodatkowo dochodzą tzw. \emph{formy definicyjne} których wartość nie musi być określona, a służące do
+globalnego modyfikowania kontekstu - zasadniczo są one jedynie elementem interpretera REPL, gdyż z punktu
+widzenia samego modelu obliczeniowego mogą być one zastąpione ,,dużym okalającym wyrażeniem lambda'', co
+czasem upraszcza formalne wnioskowanie o drcz0. Postać formy definicyjnej to lista $(!\; \alpha \;\beta)$ (gdzie
+$\alpha$ jest symbolem) interpretujemy jako ,,zmień w (globalnym) kontekście wartość $\alpha$ na wyrażenie $\beta$''.
+
+
+\section{Przykłady wartościowań S-wyrażeń}
+
+Rozpatrzmy wyrażenie $(+ \; (* \; 7 \; 8) \; 3)$. Występujące w nim symbole $+$ i $*$ reprezentują operacje elementarne
+dodawania i mnożenia odpowiednio. Wartością całego wyrażenia jest więc ,,suma''\footnote{Stosujemy tu cudzysłów,
+gdyż suma jest operacją tycząca się liczb - a tu mamy do czynienia z operacją indukowaną z sumy poprzez funckję
+reprezentacji liczb w numerały...} wartości wyrażeń $(* \; 7 \; 8)$ i $3$. Wartością drugiego z nich jest ono samo, tj $3$,
+zaś pierwszego - wyrażenie będące ,,iloczynem'' wartości wyrażeń $7$ i $8$, tj. ich samych, czyli $56$.
+Ostatecznie wartością całego wyrażenia jest wyrażenie $59$.
+
+W kolejnych przykładach przez $\rightarrow$ oznaczamy pojedynczy krok wartościowania:\\
+
+$(if \; (=\; 2 \;3)\; 997\; (quote\; NIEROWNOSC)) \rightarrow $ (ponieważ $(=\; 2\; 3) \rightarrow ()$)
+$(quote\; NIEROWNOSC) \rightarrow NIEROWNOSC$. \\
+
+$((\wedge \;(x)\; (*\; x\; x))\; 3) \rightarrow $ (w nowym kontekście, gdzie $x \rightarrow 3$)
+$ (*\; x\; x) \rightarrow (*\; 3\; 3) \rightarrow 9$.
+
+Więcej przykładów ewaluacji S-wyrażeń w ramach dialogu z REPL'em przedstawimy w następnej sekcji.
+
+
+\section{Implementacja funkcji wartościującej w Javie}
+
+Teraz pokrótce omówimy implementację ewaluatora drcz0 w Javie. Kod jest niezwykle krótki i ,,sam się
+dokumentuje'', ograniczymy się więc jedynie do naszkicowania jego struktury.
+
+Klasa \emph{SExp} reprezentuje klasę S-wyrażeń. Jej dziedzice \emph{Num}, \emph{Sym} i \emph{Cons} są
+reprezentacjami numerałów, symboli i par kropkowanych odpowiednio. Metoda $toString()$ ma znaczenie
+marginalne i może zostać ominięta, gdyż znakową reprezentacją S-wyrażeń zajmują się implementacje
+interfejsu \emph{Parser} - przykładową jest (stosunkowo marny) \emph{DefaultParser}.
+Atom specjalny $()$ reprezentujemy jako \emph{null}.
+
+Sercem implementcji jest klasa \emph{Eval}, której instancja reprezentuje ,,konkretny ewaluator''
+i może zostać wyposażona w dowolną ilość operacji elementarnych (zob. metodę $addPrimOp$).
+
+Jedyną nieoczywistą (w odczuciu autora) konstrukcją jest interfejs \emph{PrimitveProcedure}.
+Służy on przekazywaniu do ewaluatora metod (koncepcyjnie: procedur) implementujących operacje
+elementarne. O ile w języku C wystarczało dostarczać interpreterowi wskaźniki na nowe
+procedury, w Javie ze względu na jej ,,czysto obiektowy'' charakter trzeba taką procedurę
+(w zasadzie: referencję do procedury) opakować w obiekt. Przykłady takiej pokracznej konstrukcji
+znajdujemy np. w metodzie $addDefaultPrimOps$ ,,ładującej'' do świeżego ewaluatora elementarne
+operacje lispowe:
+
+\begin{verbatim}
+	primOps.put(".", new PrimitiveProcedure() { // car
+                    public SExp execute(SExp args) throws Exception{
+                    return args.getCar().getCar();
+                 }
+	    });
+\end{verbatim}
+
+Koncepcyjnie więc interfejs \emph{PrimitiveProcedure} traktujemy jako typ ,,wskaźnik na metodę
+typu \emph{SExp} $\rightarrow$ \emph{SExp}''.
+
+
+Najważniejszą metodą ewaluatora jest (jak sama nazwa wskazuje) $eval$. Argumentami $eval$ są ewaluowane
+wyrażenie oraz kontekst (tu reprezentowany przez słownik, którego kluczami są ciągi znaków (\emph{String})
+reprezentującymi symbole, zaś wartościami dowolne instancje klasy \emph{SExp}).
+
+Pętlę REPL realizują metody $runREPL$ i $runREPLplik$ - pierwsza czyta wyrażenia za pomocą
+metody $read$ dostarczonego jej parsera (a więc domyślnie ze strumienia wejściowego $System.in$),
+druga z zadanego pliku (zasadniczo ma ona charakter pomocniczy i może być całkiem ominięta).
+
+Poniżej przedstawiamy przykładową sesję z ewaluatorem (wyrażenia wprowadzone przez użytkownika
+poprzedzono znakiem większości; wyrażenia takie nazywamy czasem \emph{żądaniami}):
+\small
+\begin{verbatim}
+(drcz0 w Javie słucha)
+
+>6
+6.0
+>()
+()
+>(* 7 8)
+56.0
+>(if (@ 5) (quote (q w e)) 997)
+(q w e)
+>((^ (x) (* x x)) 5)
+25.0
+>(! a 4)
+Dodano nowy symbol do środowiska (a).
+>(+ a 1)
+5.0
+>(! kw (^ (x) (* x x)))
+Dodano nowy symbol do środowiska (kw).
+>(kw 7)
+49.0
+>(+ (kw 3) (kw 4))
+25.0
+>(! silnia (^ (n) (if (= n 0) 1 (* n (silnia (- n 1))))))
+Dodano nowy symbol do środowiska (silnia).
+>(silnia 0)
+1.0
+>(silnia 5)
+120.0
+\end{verbatim}
+\normalsize
+
+Ostatnie trzy rządania prezentują źródło siły wyrazu drcz0 (i w ogólności języków LISPo-podobnych)
+- mamy bowiem do czynienia z definicją rekurencyjną. Możliwość definiowania obiektów proceduralnych
+w kontekście w którym ,,widzą'' one same siebie jest - wraz z wyrażeniem warunkowym - źródłem
+uniwersalności języków LISPo-podobnych, tj. gwarantuje że każda funkcja rekursywna\footnote{,,Każda'' przy
+założeniu tezy Churcha-Turinga; w przeciwnym razie ,,każda funkcja ujmowalna w ramach rachunku lambda''
+lub ,,każda funkcja realizowalna przez pewną maszynę Turinga'' itp.} daje się ująć w postaci
+S-wyrażenia.
+
+Poniżej przedstawimy trzy typowe LISPowe konstrukcje mających na celu przekonać Czytelnika o sile wyrazu
+definicji rekurencyjnych; ostatnie jest przy okazji procedurą wyższego rzędu - tj pobiera procedury
+jako argumenty\footnote{W drcz0 jest też dość popularną praktyką zwracanie procedury jako wartości.}.
+
+Procedura konkatenująca dwie listy:
+\begin{verbatim}
+(! append (^ (a b)
+             (if (= a ())
+                 ()
+                 (; (. a) (append (, a) b)))))
+\end{verbatim}
+
+Procedura sprawdzająca, czy zadany atom jest elementem listy:
+\begin{verbatim}
+(! member? (^ (a l)
+              (if (= l ())
+                  ()
+                  (if (= (. l) a)
+                      T
+                      (member? a (, l))))))
+\end{verbatim}
+
+Procedura stosująca zadaną procedurę na każdym z elementów listy:
+\begin{verbatim}
+(! mapcar (^ (p l)
+             (if (= l ())
+                 ()
+                 (; (p (. l))
+                    (mapcar p (, l))))))
+\end{verbatim}
+\newpage
+Na przykład:
+\small
+\begin{verbatim}
+>(mapcar (^ (x) (* x x)) (quote (1 2 3 4 5)))
+(1.0 4.0 9.0 16.0 25.0)
+>(append (quote (q w e)) (quote (1 2 3)))
+(q w e 1.0 2.0 3.0)
+>(member? (quote d) (quote (a b c d e)))
+T
+>(member? (quote q) (quote (a b c d e)))
+()
+\end{verbatim}
+\normalsize
+
+
+Dodatkowo ewaluator obsługuje dwie procedury pierwotne nie opisane w poprzedniej sekcji, a odpowiedzialne
+za wejście/wyjście: $read$ i $disp$. Pierwsza z nich jest 0-arnym operatorem elementarnym którego wartością
+jest wczytane za pomocą metody $read$ S-wyrażenie; druga wyświetla na \emph{System.out} wartość swojego
+argumentu (i zwraca ją jako swoją).
+
+
+\section{Metaokólny interpreter drcz0}
+
+Na zakończenie części ,,interpreterowej'' zamieszczamy program w języku drcz0 będący interpreterem
+REPL dla drcz0. Taka konstrukcja, prócz walorów poznawczych, okazuje się być wielce użyteczna przy
+testowaniu poprawności implementacji języka, jak i różnorodnych transformacji programów (np. kompilatora
+z następnej sekcji).
+W kodzie tym stosujemy (popularny w implementacjach języków LISPo-podobnych) skrót składniowy
+$'\alpha$ na wyrażenie $(quote\; \alpha)$, oraz nawiasy klamrowe $\{...\}$ dla komentarzy\footnote{Do projektu
+dołączony jest program \emph{drcz0uproszcz} w języku C który zamienia kod w takiej postaci do postaci ,,strawnej''
+dla  nieszczęsnego \emph{DefaultParser}'a}.
+
+
+\small
+\begin{verbatim}
+{ ----------------------------------------
+  - metaokólny interpreter drcz0 w drcz0 -
+  ---------------------------------------- }
+
+
+{ - składniowe skróty - }
+
+(! .. (^ (e) (. (. e))))
+(! ,. (^ (e) (, (. e))))
+(! ., (^ (e) (. (, e))))
+(! .,, (^ (e) (. (, (, e)))))
+(! .,,, (^ (e) (. (, (, (, e))))))
+
+(! list3 (^ (a b c) (; a (; b (; c ())))))
+(! list4 (^ (a b c d) (; a (; b (; c (; d ()))))))
+
+(! empty? (^ (e) (= e ())))
+
+
+
+{ - standardowe procedury - }
+
+(! member? (^ (e l)
+              (if (empty? l)
+                  ()
+                  (if (= e (. l))
+                      T
+                      (member? e (, l))))))
+
+(! append (^ (a b)
+             (if (empty? a)
+                 b
+                 (; (. a) (append (, a) b)))))
+
+(! pair (^ (a b)
+           (if (empty? a)
+               ()
+               (; (; (. a) (. b))
+                  (pair (, a) (, b))))))
+
+
+{ - klasyfikowanie wyrażeń do kategorii semantycznych (stałe, zmienne, kombinacje) - }
+
+(! is-constant? (^ (expr)
+                   (if (@ expr)
+                       (if (empty? expr)
+                           T
+                           (if (= expr 'T)
+                               T
+                               (if (is-primop? expr)
+                                   T
+                                   (# expr))))
+                       (is-procedure? expr))))
+
+(! is-procedure? (^ (expr)
+                    (if (@ expr)
+                        ()
+                        (= (. expr) ':proc))))
+
+
+(! is-lambda-form? (^ (expr)
+                      (if (@ expr)
+                          ()
+                          (= (. expr) '^))))
+
+
+(! primopnames '(; . , # @ = disp read + - * / % > <))
+
+(! is-primop? (^ (expr)
+                 (if (@ expr)                
+                     (member? expr primopnames)
+                     ())))
+
+
+(! is-variable? (^ (expr)
+                   (if (@ expr)
+                       (if (# expr)
+                           ()
+                           T)
+                       ())))
+
+(! is-quote-form? (^ (expr)
+                     (if (@ expr)
+                         ()
+                         (= (. expr) 'quote))))
+
+(! is-define-form? (^ (expr)
+                      (if (@ expr)
+                          ()
+                          (= (. expr) '!))))
+
+(! is-if-form? (^ (expr)
+                  (if (@ expr)
+                      ()
+                      (= (. expr) 'if))))
+
+
+{ - "akcesory" dla form specjalnych - }
+
+(! quoted-expr (^ (form) (., form)))
+
+(! definiens (^ (form) (., form)))
+(! definiendum (^ (form) (.,, form)))
+
+(! lambda-arglist (^ (expr) (., expr)))
+(! lambda-body (^ (expr) (.,, expr)))
+
+(! if-conditional (^ (form) (., form)))
+(! if-ifbranch (^ (form) (.,, form)))
+(! if-elsebranch (^ (form) (.,,, form)))
+
+
+{ - + dla 'zwykłych kombinacji' - }
+
+(! rator (^ (e) (. e)))
+(! rands (^ (e) (, e)))
+
+
+{ - i jeszcze (wyłącznie dla wewnętrznej reprezentacji) "konstruktor"
+  + "akcesory" dla procedur - }
+
+(! new-procedure (^ (arglist body env) (list3 ':proc arglist body)))
+(! proc-arglist (^ (expr) (., expr)))
+(! proc-body (^ (expr) (.,, expr)))
+
+
+
+
+{ - środowiska - }
+
+(! lookup (^ (sym env)
+             (if (empty? env)
+                 ()
+                 (if (= sym (.. env))
+                     (,. env)
+                     (lookup sym (, env))))))
+
+(! new-env (^ (sym val env)
+              (; (; sym val) env)))
+
+
+{ - sam ewaluator - }
+
+(! eval (^ (expr env)
+           (if (is-constant? expr)
+               expr
+               (if (is-lambda-form? expr)
+                   (new-procedure (lambda-arglist expr) (lambda-body expr) env)
+                   (if (is-variable? expr)
+                       (lookup expr env)
+                       (if (is-quote-form? expr)
+                           (quoted-expr expr)
+                           (if (is-define-form? expr)
+                               (repl-update-env (definiens expr)
+                                                (eval (definiendum expr) env)
+                                                env)
+                               (if (is-if-form? expr)
+                                   (eval-if (if-conditional expr)
+                                            (if-ifbranch expr)
+                                            (if-elsebranch expr)
+                                            env)
+                                   (apply (eval (rator expr) env)
+                                          (evlis (rands expr) env) env)))))))))
+
+
+(! evlis (^ (list env)
+            (if (empty? list)
+                ()
+                (; (eval (. list) env)
+                   (evlis (, list) env)))))
+
+
+(! eval-if (^ (cond ifbr elsebr env)
+              (if (eval cond env)
+                  (eval ifbr env)
+                  (eval elsebr env))))
+
+
+
+
+
+
+
+(! apply (^ (op args env)
+            (if (empty? op)
+                '(ERROR: cannot apply nil)
+                (if (= op 'T)
+                    '(ERROR: cannot apply T)
+                    (if (# op)
+                        '(ERROR: cannot apply numeral)
+                        (if (is-primop? op)
+                            (apply-prim op args)
+                            (if (is-procedure? op)
+                                (eval (proc-body op)
+                                      (append (pair (proc-arglist op) args)
+                                              env))
+                                (apply (eval op env) args env))))))))
+
+
+(! apply-prim (^ (op args)
+                 (if (= op ';)
+                     (; (. args) (. (, args)))
+                     (if (= op '.)
+                         (. (. args))
+                         (if (= op ',)
+                             (, (. args))
+                             (if (= op '#)
+                                 (# (. args))
+                                 (if (= op '@)
+                                     (@ (. args))
+                                     (if (= op '=)
+                                         (= (. args) (. (, args)))
+                                         (if (= op 'read)
+                                             (read)
+                                             (if (= op 'disp)
+                                                 (disp (. args))
+                 (if (= op '+)
+                     (+ (. args) (. (, args)))
+                     (if (= op '-)
+                         (- (. args) (. (, args)))
+                         (if (= op '*)
+                             (* (. args) (. (, args)))
+                             (if (= op '/)
+                                 (/ (. args) (. (, args)))
+                                 (if (= op '%)
+                                     (% (. args) (. (, args)))
+                                     (if (= op '>)
+                                         (> (. args) (. (, args)))
+                                         (if (= op '<)
+                                             (< (. args) (. (, args)))
+                                             '(ERR (unknown primop)))))))))))))))))))
+                                  
+
+
+
+
+{ - pętla REPL - }
+
+(! repl (^ (sideeffect env)
+           (repl (disp (eval (read) env)) env)))
+
+(! repl-update-env (^ (sym val env)
+                      (repl (disp (list4 'new 'meaning 'for sym)) (new-env sym val env))))
+
+(! run (^ ()
+          ((^ (step1 step2 step3) (repl (disp 'READY.) ()))
+           (disp '(--------- INTERPRETER DRCZ-0 ------------)) {step1}
+           (disp '(- MMXI Gdańsk, M.J.Stańczyk, drcz@o2.pl -)) {step2}
+           (disp '(-----------------------------------------)) {step3}
+          )))
+	    
+\end{verbatim}
+\normalsize
+
+
+\section{Alternatywny model obliczeniowy dla drcz0 - maszyna SrECD}
+
+Model podstawieniowy pomimo swej przejrzystości ma pewne wady - wymaga dużej ilości sprawdzeń,
+oraz silnie obciąża stos wywołań procedur - przy każdym nietrywialnym wyrażeniu $eval$ wywołuje
+sam siebie wielokrotnie - bezpośrednio i pośrednio (przez $apply$ i $evlis$).
+
+Alternatywą jest maszyna abstrakcyjna SrECD, będąca adaptacją maszyny SECD Petera Landina (\cite{MEE}) dla
+języka drcz0. Maszyna ,,składa się'' z czterech rejestrów:
+\begin{enumerate}
+\item S - stos wartości pośrednich,
+\item E - bieżący kontekst,
+\item C - kod do wykonania (,,w toku'')
+\item D - zrzuty (stos wywołań)
+\end{enumerate}
+
+Działanie maszyny tradycyjnie ujmuje się w formie reguł transformacji czwórki uporządkowanej $<S, E, C, D>$:
+\begin{verbatim}
+ <S,E,(LDC x)::C,D> -> <[x.S],E,C,D> 
+
+ <S,E{x->a},('LU x)::C,D> -> <[a.S],E{x->a},C,D> 
+
+ <[a.S],E,('BIND x)::C,D> -> <S,E{x->a},C,D> 
+
+ <S,E{x->a},('UNBIND x)::C,D> -> <S,E,C,D> 
+
+ <[x.S],E,('SEL tb fb):C,D> -> <S,E,tb,[C.D]> jesli x jest różny od (),
+                       lub  -> <S,E,fb,[C.D]> w przeciwnym razie
+
+ <[f.S],E,['AP.C],D> -> <S,E,f,[C.D]> 
+
+ <S,E,('RTN),[C.D]> -> <S,E,C,D> 
+\end{verbatim}
+
+Gdzie notacja $E\{s\rightarrow v\}$ oznacza ,,uaktualnienie kontekstu wartością $v$ dla symbolu $s$''
+(formalnie: $E\{s \rightarrow v\}(x) = v$ gdy $x=s$ oraz $ = E(x)$ w przeciwnym razie), zaś $::$ to skrót
+dla konkatenacji list.
+
+Ideowo rozkaz LDC realizuje ewaluację stałych (numerałów, $()$ i treści form cytowanych),
+LU realizuje ewaluację zmiennych, BIND i UNBIND modyfikują kontekst, SEL i RTN realizują
+ewaluację form warunkowych, zaś AP i RTN - ewaluację aplikacji (obiektów proceduralnych).
+
+Dodatkowo przyjmujemy, że w rejestrze C mogą występować kody operacji elementarnych; przy kodzie
+operacji $n$-arnej ze stosu S zostaje zdjętych pierwszych $n$ wartości, operacja zostaje na nich
+wykonana i wynik trafia na stos S.
+
+Maszyna SrECD posiada też dodatkowe dwa rozkazy dla obsługi tzw. wywołań ogonowych\footnote{Jest
+to bardzo ładna oszczędność stosu wywołań, umożliwiająca realizowanie na maszynie SrECD pętli
+nieskończonych, opisana gdzie indziej.}:
+\begin{verbatim}
+ <[f.S],E,['TRAP.C],D> -> <S,E,f,D> 
+
+ <[x.S],E,('SER tb fb):C,D> -> <S,E,tb,D> jesli x jest różny od (),
+                       lub  -> <S,E,fb,D> w przeciwnym razie.
+\end{verbatim}
+
+
+Kompilacja z wyrażeń drcz0 do kodu maszynowego SrECD odbywa się podług następujących reguł:
+\begin{enumerate}
+\item wyrażenie stałe $\alpha$ kompilujemy do $(LDC \; \alpha)$,
+\item formę cytowaną $(quote \; \alpha)$ kompilujemy do $(LDC \; \alpha)$,
+\item symbol $\alpha$ kompilujemy do $(LU \; \alpha)$,
+\item formę definicyjną $(!\;\alpha\; \beta)$ kompilujemy do $\beta' :: (BIND\;\alpha )$, gdzie $\beta' $ to skompilowane wyrażenie $\beta$,
+\item formę warunkową $(if\;\alpha\;\beta\;\gamma)$ kompilujemy do
+$\alpha' :: (SEL\; (\beta')\; (\gamma'))$, gdzie $\alpha', \beta', \gamma'$ to skompilowane wyrażenia $\alpha, \beta, \gamma$ odpowiednio,
+\item formę lambda $(\wedge \;(\alpha_1 ... \alpha_n)\;\beta)$ kompilujemy do\\
+$(LDC\; (BIND\; \alpha_1\; ... \;BIND\; \alpha_n\; \beta'\; UNBIND\; \alpha_1 \;...\; UNBIND\; \alpha_n\; RTN))$,
+gdzie $\beta'$ to skompilowane wyrażenie $\beta$,
+\item kombinację $(\alpha \; \beta_1 ... \beta_n)$ kompilujemy do
+$\beta_n'\; ::\; ...\; ::\; \beta_1' :: \alpha'$, gdzie $\alpha',beta_1',...,beta_n'$ to skompilowane wyrażenia
+$\alpha,\beta_1,...,beta_n$ odpowiednio,
+\item wreszcie symbole operacji elementarnych kompilujemy wg poniższej tabeli:
+
+\begin{tabular} {r|l}
+$\#$ & $NUM$\\
+\hline
+$@$ & $ATOM$ \\
+\hline
+$=$ & $EQ$\\
+\hline
+$.$ & $CAR$ \\
+\hline
+$,$ & $CDR$ \\
+\hline
+$+$ & $ADD$ \\
+\hline
+$*$ & $MUL$ \\
+\hline
+$-$ & $SUB$ \\
+\hline
+$/$ & $DIV$ \\
+\hline
+$\%$ & $MOD$ \\
+\hline
+$>$ & $GT$ \\
+\hline
+$<$ & $LT$ \\
+\hline
+$disp$ & $DISP$ \\
+\hline
+$read$ & $READ$ \\
+\end{tabular}
+
+\end{enumerate}
+
+I tak na przykład wyrażenie $((\wedge\; (x\; y)\; (*\; x\; y))\; 2\; 3)$ kompilujemy do następującego kodu:\\
+
+\begin{verbatim}
+( LDC 3
+  LDC 2
+  LDC (BIND x
+       BIND y
+       LU y
+       LU x
+       MUL
+       UNBIND x
+       UNBIND y
+       RTN)
+  AP )
+\end{verbatim}
+
+Dokładny opis i derywację maszyny prezentujemy gdzie indziej. Poniżej prezentujemy kod kompilatora
+drcz0$\rightarrow$srecd w języku drcz0:
+
+
+\small
+\begin{verbatim}
+{ -- kompilator drcz0 -> srecd -- }
+
+(! compile (^ (program) (append-all (map comp program))))
+
+(! null? (^ (expr) (= expr '())))
+(! .. (^ (e) (. (. e))))
+(! ,. (^ (e) (, (. e))))
+(! ., (^ (e) (. (, e))))
+(! .,, (^ (e) (. (, (, e)))))
+(! .,,, (^ (e) (. (, (, (, e))))))
+
+(! list2 (^ (a b) (; a (; b ()))))
+(! list3 (^ (a b c) (; a (; b (; c ())))))
+(! list4 (^ (a b c d) (; a (; b (; c (; d ()))))))
+
+(! member? (^ (el list)
+              (if (null? list)
+                  ()
+                  (if (= el (. list))
+                      T
+                      (member? el (, list))))))
+
+(! append (^ (a b)
+             (if (null? a)
+                 b
+                 (; (. a) (append (, a) b)))))
+
+(! reverse (^ (x)
+              (if (null? x)
+                  ()
+                  (append (reverse (, x)) (; (. x) ())))))
+
+(! map (^ (p list)
+          (if (null? list)
+              ()
+              (; (p (. list)) (map p (, list))))))
+
+(! pair (^ (a b)
+           (if (null? a)
+               ()
+               (; (; (. a) (. b))
+                  (pair (, a) (, b))))))
+
+(! assoc (^ (key alist)
+            (if (null? alist)
+                ()
+                (if (= key (.. alist))
+                    (,. alist)
+                    (assoc key (, alist))))))
+
+(! reduce (^ (op neutr list)
+             (if (null? list)
+                 neutr
+                 (op (. list) (reduce op neutr (, list))))))
+
+(! append-all (^ (ll) (reduce append () ll)))
+
+{ ------------------------------------------------------------------- }
+
+(! comp (^ (expr)
+           (if (is-const? expr)
+               (comp-const expr)
+               (if (is-primop? expr)
+                   (comp-primop expr)
+                   (if (is-variable? expr)
+                       (list2 'LU expr)
+                       (if (is-label-form? expr)
+                           (comp-label expr)
+                           (if (is-if-form? expr)
+                               (comp-if expr)
+                               (if (is-lambda-form? expr)
+                                   (comp-lambda expr)
+                                   (comp-application expr)))))))))
+
+(! comp-application (^ (expr)
+                       (append (append-all (map comp (reverse expr)))
+                               (if (is-primop? (. expr))
+                                   '()
+                                   '(AP)))))
+
+(! is-const? (^ (expr)
+                (if (null? expr)
+                    T
+                    (if (# expr)
+                        T
+                        (if (@ expr)
+                            ()
+                            (= (. expr) 'QUOTE))))))
+
+(! is-variable? (^ (expr)
+                   (if (null? expr)
+                       ()
+                       (if (# expr)
+                           ()
+                           (if (@ expr)
+                               T
+                               () )))))
+
+(! is-cons? (^ (expr) (if (@ expr) () T)))
+
+(! is-primop? (^ (expr) (member? expr '(= . , ; # @ + - * / % > < disp read))))
+
+(! is-if-form? (^ (expr)
+                  (if (@ expr)
+                      ()
+                      (if (= (. expr) 'if)
+                          T
+                          () ))))
+
+(! is-label-form? (^ (expr)
+                     (if (@ expr)
+                         ()
+                         (if (= (. expr) '!)
+                             T
+                             () ))))
+
+(! is-lambda-form? (^ (expr)
+                      (if (@ expr)
+                          ()
+                          (if (= (. expr) '^)
+                              T
+                              () ))))
+
+(! primop-names (pair '(= @ # . , ; + - * / % > < disp read)
+                      '(EQ ATOM NUM CAR CDR CONS ADD SUB MUL DIV MOD GT LT DISP READ)))
+
+(! comp-primop (^ (expr) (; (assoc expr primop-names) ())))
+
+(! comp-const (^ (expr)
+                 (if (@ expr)
+                     (list2 'LDC expr)
+                     (if (= (. expr) 'quote)
+                         (; 'LDC (, expr))
+                         'ERR))))
+
+(! comp-if (^ (expr)
+              ((^ (cnd tb fb)
+                  (append cnd
+                          (; 'SEL (; tb (; fb ())))))
+                (comp (., expr))                  {cnd}
+                (append (comp (.,, expr)) '(RTN))  {tb} 
+                (append (comp (.,,, expr)) '(RTN)) {fb} 
+              )))
+
+(! comp-label (^ (expr)
+                 ((^ (sym val)
+                     (append val (list2 'BIND sym)))
+                  (., expr)         {sym}
+                  (comp (.,, expr)) {val}
+                 )))
+
+(! comp-lambda (^ (expr)
+                  ((^ (arglist body)
+                      (list2 'LDC (append (bind-block-for arglist)
+                                          (append body
+                                                  (unbind-rtn-block-for arglist)))))
+                   (., expr)      {arglist}
+                   (comp (.,, expr)) {body}
+                  )))
+
+(! bind-block-for (^ (al)
+                     (if (null? al)
+                         ()
+                         (; 'BIND
+                            (; (. al)
+                               (bind-block-for (, al)))))))
+
+(! unbind-rtn-block-for (^ (al)
+                           (if (null? al)
+                               '(RTN)
+                               (; 'UNBIND
+                                  (; (. al)
+                                     (unbind-rtn-block-for (, al)))))))
+
+\end{verbatim}
+\normalsize
+
+
+\section{Implementacja maszyny SrECD w Javie}
+
+Zasadniczo implementacja korzysta z tych samych klas co interpreter (tj \emph{SExp} wraz z dziedzicami,
+implementacje \emph{Parser}). Posiada swój analogon interfejsu $PrimitiveProcedure$ wzbogacony o metodę
+$getArity$ zwracającą arność procedury (w odróżnieniu od interpretera, w wypadku maszyny SrECD nie
+podajemy argumentów w postaci jednego S-wyrażenia będącego listą, a w postaci tablicy S-wyrażeń - aby
+uniknąć niepotrzebnych konstrukcji \emph{Cons}).
+Kluczową metodą jest $run$ zwracający na koniec główkę stosu wartości pośrednich.
+
+
+\section{Co dalej?}
+W katalogu $src-drcz$ znajduje się kilka przykładowych zastosowań języka drcz0 - w szczególności
+interesujący jest program $desugar.drcz0$ umożliwiający pisanie programów w drcz1 - dialekcie drcz0
+rozszerzonym o dwie szalenie wygodne konstrukcje \emph{let} oraz \emph{cond}.
+W ramach projektu drczlang pojawił się też język drcz2 wiążący statycznie zmienne wolne, oraz
+drcz3 umożliwiający pracę z hieraricznymi strukturami danych/kodu (które można interpretować jako
+bardzo surowy system obiektów).
+
+Istotą projektu nie jest jednak dostarczenie wygodnego języka dla programistów, ale same badania
+nad istotą procesów obliczeniowych. Aktualnie autor kończy implementować transformacje składniowe
+programów w drcz0 przeprowadzających bardzo agresywną optymalizację (redukcja wywołań funkcji,
+usuwanie redundantych wyrażeń warunkowych, propagacja stałych itp). Nie są one jednak przedmiotem
+bieżącego sprawozdania, pojawią się w pracy inżynierskiej autora, poświęconej metodom algebraicznym
+i (meta)logicznym w programowaniu.
+
+
+\begin{thebibliography}{}
+ \bibitem{McCarthy1960} John McCarthy \emph{,,Recursive Functions of Symbolic Expressions and Their Computation by Machine, Part I''}, Massachusetts Institute of Technology, Cambridge 1960
+
+ \bibitem{MEE}  Peter J.Landin \emph{,,The Mechanical Evaluation of Expressions''}, The Computer Journal, Vol. 6, No. 4. (1 January 1964)
+
+ \bibitem{Next700} Peter J.Landin \emph{,,The Next 700 Programming Languages''}, CACM 9(3):157–65, March 1966.
+
+ \bibitem{ArtOfInterpreter} Guy Lewis Steele, Jr., Gerald Jay Sussman \emph{,,The Art of the Interpreter or, the Modularity Complex (Parts Zero, One, and Two)''}, MIT AI Lab. AI Lab Memo AIM-453. May 1978.
+
+ \bibitem{drczlang} \url{http://drczlang.sourceforge.net/}
+
+
+\end{thebibliography}
+
+
+\end{document}

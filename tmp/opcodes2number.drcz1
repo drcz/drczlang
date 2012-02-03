@@ -1,0 +1,99 @@
+{ -- dla maszyny srecd w C, zamianka opkodów na ich numerki... -- }
+
+(! kot (quote (
+
+(! opcodes2numbers (^ (code)
+   (if (= code ())
+       () 
+       (; (o2n (first-command code))
+       	  (opcodes2numbers (rest-commands code))))))
+
+{ aaaa jeszcze wiesz rozgałęzienia LDF i SEL/SER... - i teraz powinno być git }
+
+{ ha, tylko LDC jest rozgałęzieniem WYŁĄCZNIE wtedy gdy argument LDC jest listą
+  rozpoczynającą się od symbolu BIND.... ORETY i to nie zawsze!
+  aaaaaaaaaa nie jesteśmy w stanie po kompilacji rozróżnić stałej (BIND ...) od kodu!!!
+  to może jednak na czas kompilacji wprowadzimy dodatkowy symbol LDF, synonim dla LDC
+  który składniowo sygnalizuje jedynie, że chodzi o obiekt funkcyjny??
+}
+
+(! o2n (^ (singlecommand)
+   (? ((= (. singlecommand) 'LDF) {->} (list2 (opcode-number 'LDF)
+      	     		    	  	      (opcodes2numbers (., singlecommand))))
+      ((= (. singlecommand) 'SEL) {->} (list3 (opcode-number 'SEL)
+      	     		    	  	      (opcodes2numbers (., singlecommand))
+      	     		    	  	      (opcodes2numbers (.,, singlecommand))))
+      (T {->} (; (opcode-number (. singlecommand)) (, singlecommand)))
+   )))
+
+
+(! opcode-arity (^ (op)
+   		   (? ((= op 'SEL) {->} 2)
+		      ((= op 'SER) {->} 2)
+		      ((= op 'LDC) {->} 1)
+		      ((= op 'LDF) {->} 1)
+		      ((= op 'LU) {->} 1)
+		      ((= op 'BIND) {->} 1)
+		      ((= op 'UNBIND) {->} 1)
+		      (T {->} 0)
+		   )))
+
+(! first-command (^ (code)
+   		    (first-n code (+ (opcode-arity (. code)) 1))))
+
+(! rest-commands (^ (code)
+   		    (nth-tail code (+ (opcode-arity (. code)) 1))))
+
+
+{ to jest ładne - poniższy cond został wygenerowany w rubym na podstawie źródła w C :) }
+
+(! opcode-number (^ (op)
+   		    (? ((= op 'LDC) 0)
+		       ((= op 'LDF) 0) { LDF to tylko synonim dla LDC, zob. w kajeciku! }
+		       ((= op 'LU) 1)
+		       ((= op 'BIND) 2)
+		       ((= op 'UNBIND) 3)
+		       ((= op 'EQ) 4)
+		       ((= op 'NUM) 5)
+		       ((= op 'ATOM) 6)
+		       ((= op 'CAR) 7)
+		       ((= op 'CDR) 8)
+		       ((= op 'CONS) 9)
+		       ((= op 'SEL) 10)
+		       ((= op 'SER) 11)
+		       ((= op 'AP) 12)
+		       ((= op 'TRAP) 13)
+		       ((= op 'RTN) 14)
+		       ((= op 'DISP) 15)
+		       ((= op 'READ) 16)
+		       ((= op 'ADD) 17)
+		       ((= op 'MUL) 18)
+		       ((= op 'SUB) 19)
+		       ((= op 'DIV) 20)
+		       ((= op 'MOD) 21)
+		       ((= op 'LT) 22)
+		       ((= op 'GT) 23)
+		       (T '(ERR: unknown opcode))
+		    )))
+
+ {a tu wszyszo czego zabrakło: }
+{ n-ty ogon listy, tj wszystkie prócz n pierwszych jej elementów }
+
+(! nth-tail (^ (list n)
+   	       (if (= n 0)
+	       	   list
+		   (nth-tail (, list) (- n 1)))))
+
+
+{ lista pierwszych n elementów listy }
+
+(! first-n (^ (list n)
+   	      (if (= n 0)
+	      	  ()
+		  (; (. list) (first-n (, list) (- n 1))))))
+
+{ skróty: }
+(! ., (^ (e) (. (, e))))
+(! .,, (^ (e) (. (, (, e)))))
+
+)))

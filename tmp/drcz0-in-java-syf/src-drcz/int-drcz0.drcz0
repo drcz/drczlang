@@ -1,0 +1,130 @@
+{ - metaokólny interpreter drcz0, napisany w średnim stylu...  - }
+
+(! primopnames '(; . , # @ = disp read + - * / % > <))
+
+(! repl (^ (sideeffect env)
+   	   (repl (disp (eval (read) env)) env)))
+
+(! eval (^ (expr env)
+   	   (if (= expr ())
+	       expr
+	       (if (# expr)
+	       	   expr
+	           (if (@ expr)
+		       (lookup expr env)
+		       (if (= (. expr) 'quote)
+		       	   (. (, expr))
+			   (if (= (. expr) '^)
+			       expr
+			       (if (= (. expr) '!)
+			       	   (update-env (. (, expr))
+				   	       (eval (. (, (, expr))) env)
+					       env)
+	      	       	       	   (if (= (. expr) 'if)
+		       	       	       	  (eval-if (. (, expr))
+	      	     	       	    	    	   (. (, (, expr)))
+				    	    	   (. (, (, (, expr))))
+				    	    	   env)
+		               	   	  (apply (. expr) (evlis (, expr) env) env))))))))))
+
+
+(! map (^ (proc list)
+       	  (if (= list ())
+	      ()
+	      (; (proc (. list))
+	      	 (map proc (, list))))))
+
+(! append (^ (a b)
+   	     (if (= a ())
+	     	 b
+		 (; (. a) (append (, a) b)))))
+
+(! pair (^ (a b)
+   	   (if (= a ())
+	       ()
+	       (; (; (. a) (. b))
+	       	  (pair (, a) (, b))))))
+
+(! member? (^ (el list)
+   	      (if (= list ())
+	      	  ()
+		  (if (= el (. list))
+		      T
+		      (member? el (, list))))))
+
+(! evlis (^ (list env)
+   	    (if (= list ())
+	    	()
+		(; (eval (. list) env) (evlis (, list) env)))))
+
+(! lookup (^ (key alist)
+   	     (if (= alist ())
+	     	 ()
+		 (if (= key (. (. alist)))
+		     (, (. alist))
+		     (lookup key (, alist))))))
+
+(! eval-if (^ (condition branch1 branch2 env)
+   	      (if (eval condition env)
+	      	  (eval branch1 env)
+		  (eval branch2 env))))
+
+(! apply (^ (op args env)
+   	    (if (= op ())
+	    	'(ERR: APPLY (NIL))
+		(if (# op)
+		    '(ERR: APPLY (NUMBER))
+		    (if (is-primop? op)
+	    	    	(apply-prim op args)
+			(if (@ op)
+		    	    (apply (eval op env) args env)
+		    	    (if (= (. op) '^)
+			    	(apply-lambda (. (, op))
+					      (. (, (, op)))
+					      args
+					      env)
+				'(ERR: APPLY))))))))
+
+
+(! is-primop? (^ (sym) (member? sym primopnames)))
+
+(! apply-prim (^ (op args)
+   	      	 (if (= op ';)
+		     (; (. args) (. (, args)))
+		     (if (= op '.)
+		     	 (. (. args))
+			 (if (= op ',)
+			     (, (. args))
+			     (if (= op '#)
+			     	 (# (. args))
+				 (if (= op '@)
+				     (@ (. args))
+				     (if (= op '=)
+				     	 (= (. args) (. (, args)))
+					 (if (= op 'read)
+					     (read)
+					     (if (= op 'disp)
+					     	 (disp (. args))
+						 (if (= op '+)
+						     (+ (. args) (. (, args)))
+						     (if (= op '-)
+						     	 (- (. args) (. (, args)))
+						 	 (if (= op '*)
+						     	     (* (. args) (. (, args)))
+							     (if (= op '/)
+						     	     	 (/ (. args) (. (, args)))
+								 (if (= op '%)
+						     		     (% (. args) (. (, args)))
+						 		     (if (= op '>)
+						     		     	 (> (. args) (. (, args)))
+								     	 (if (= op '<)
+						     			     (< (. args) (. (, args)))
+									     '(ERR (unknown primop)))))))))))))))))))
+
+(! apply-lambda (^ (arglist body argvals env)
+  		   (eval body (append (pair arglist argvals) env))))
+
+(! update-env (^ (sym val env)
+   	      	 (repl (disp val) (; (; sym val) env))))
+ 
+(! run (^ () (repl (disp '(- DRCZ0 słucha -)) (; (; 'T 'T) (pair primopnames primopnames)))))
