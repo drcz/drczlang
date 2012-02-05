@@ -1,7 +1,7 @@
 CC=gcc
 CFLAGS=-c -Wall
 LDFLAGS=
-SOURCES=parser.c SE.c srecd.c main.c
+SOURCES=SE.c mempool.c parser.c srecd.c main.c
 OBJECTS=$(SOURCES:.c=.o)
 EXECUTABLE=srecd
 
