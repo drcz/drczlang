@@ -1,0 +1,72 @@
+(
+{             -= lukier składniowy - smaczny i zdrowy! =-
+
+  Zamienia formy "?" (COND), "and" i "or" na zagnieżdżone wyrażenia warunkowe,
+  oraz formy "let" na wyr. lambda. Formalnie jest to kompilator drcz1->drcz0. }
+
+(! desugar (^ (code)
+   	      (? ((@ code) code)
+		 ((= (. code) 'quote) code)
+		 ((= (. code) '?) (cond2if (, code) desugar))
+		 ((= (. code) 'or) (or2if (, code) desugar))
+		 ((= (. code) 'and) (and2if (, code) desugar))
+		 ((= (. code) 'let) (let2lambda (, code) desugar))
+		 (T (; (desugar (. code))
+		       (desugar (, code)))))))
+
+
+{ - kluczowe transformacje: - }
+
+{ (cond (p1 e1) ... (pn en) (T e0)) -> (if p1 e1 (... (if pn en e0) ... ) }
+(! cond2if (^ (condlist cont)
+   	      (? ((= condlist ()) ())
+	      	 ((= (.. condlist) 'T) (cont (.,. condlist)))
+		 (T (list4 'if
+		    	   (cont (.. condlist))
+		    	   (cont (.,. condlist))
+		    	   (cond2if (, condlist) cont))))))
+
+{ (or p1 p2) -> (if p1 T p2) }
+(! or2if (^ (orexp cont)
+   	    (list4 'if
+	     	   (cont (. orexp))
+		   'T
+		   (cont (., orexp)))))
+
+{ (and p1 p2) -> (if p1 p2 ()) }
+(! and2if (^ (andexp cont)
+   	     (list4 'if
+	     	    (cont (. andexp))
+		    (cont (., andexp))
+		    ())))
+
+{ (let ((s1 e1) ... (sn en)) e) -> ((^ (s1 ... sn) e) e1 ... en) }
+(! let2lambda (^ (letexp cont)
+   	      	 (; (; '^
+		       (; (extract-syms (. letexp))
+		       	  (cont (, letexp))))
+		    (extract-vals (. letexp)))))
+
+{ tj. (let ((s1 e1) ... (sn en)) e') -> ((^ (s1 ... sn) e') e1 ... en). }
+
+
+{ - i ich pomocnicy: - }
+
+(! .. (^ (e) (. (. e))))
+(! ., (^ (e) (. (, e))))
+(! .,. (^ (e) (. (, (. e)))))
+
+(! list2 (^ (a b) (; a (; b ()))))
+(! list3 (^ (a b c) (; a (; b (; c ())))))
+(! list4 (^ (a b c d) (; a (; b (; c (; d ()))))))
+
+(! mapcar (^ (p l)
+       	     (if (= l ())
+	     	 ()
+		 (; (p (. l)) (mapcar p (, l))))))
+
+(! extract-syms (^ (ab) (mapcar (^ (x) (. x)) ab)))
+(! extract-vals (^ (ab) (mapcar (^ (x) (., x)) ab)))
+
+{ i fajno. }
+)
