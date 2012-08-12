@@ -1,0 +1,95 @@
+{ - drcz1 interpreter, quite ugly, just for bootstrapping - }
+
+(! repl (^ (_ env) (repl (disp (eval (read) env)) env)))
+
+(! eval (^ (expr env)
+   	   (? ((= expr ()) {=>} ())
+	      ((# expr) {=>} expr)
+	      ((@ expr) {=>} (lookup expr env))
+	      (t {=>} (let ((hd (. expr))
+	      	            (tl (, expr)))
+                       {in}
+		      (? ((= hd 'quote) {=>} (. tl))
+		      	 ((= hd '^) {=>} (; hd tl)) {-wtf?!-}
+		      	 ((= hd '!) {=>} (extend-env (. tl) (eval (. (, tl)) env) env))
+			 ((= hd 'if) {=>} (if (eval (. tl) env)
+		      	     	      	      (eval (. (, tl)) env)
+				       {else} (eval (. (, (, tl))) env)))
+			 ((= hd '?) {=>} (eval-cond tl env))
+			 ((= hd 'let) {=>} (eval (. (, tl))
+			     	      	   	 (append (let-list-2-env (. tl) env) env)))
+			 ((= hd 'not) {=>} (if (eval (. tl) env) () {else} t))
+			 ((= hd 'and) {=>} (if (eval (. tl) env)
+			     	      	       (if (eval (. (, tl)) env) t {else} ())
+					{else} ()))
+			 ((= hd 'or) {=>} (if (eval (. tl) env)
+			     	     	       t
+			     	      	{else} (if (eval (. (, tl)) env) t {else} ())))
+		      	 ((= hd '^) {=>} expr)
+			 ((= hd 'list) {=>} (evlis tl env))
+			 { primops: }
+			 ((= hd '=) {=>} (= (eval (. tl) env) (eval (. (, tl)) env)))
+			 ((= hd ';) {=>} (; (eval (. tl) env) (eval (. (, tl)) env)))
+			 ((= hd '.) {=>} (. (eval (. tl) env))) 
+			 ((= hd ',) {=>} (, (eval (. tl) env))) 
+			 ((= hd '@) {=>} (@ (eval (. tl) env))) 
+			 ((= hd '#) {=>} (# (eval (. tl) env))) 
+			 ((= hd '+) {=>} (+ (eval (. tl) env) (eval (. (, tl)) env)))
+			 ((= hd '-) {=>} (- (eval (. tl) env) (eval (. (, tl)) env)))
+			 ((= hd '*) {=>} (* (eval (. tl) env) (eval (. (, tl)) env)))
+			 ((= hd '/) {=>} (/ (eval (. tl) env) (eval (. (, tl)) env)))
+			 ((= hd '%) {=>} (% (eval (. tl) env) (eval (. (, tl)) env)))
+			 ((= hd '>) {=>} (> (eval (. tl) env) (eval (. (, tl)) env)))
+			 ((= hd '<) {=>} (< (eval (. tl) env) (eval (. (, tl)) env)))
+			 ((= hd 'read) {=>} (read))
+ 			 ((= hd 'disp) {=>} (disp (eval (. tl) env)))
+			 { other applications: }
+			 (T (apply (eval hd env) (evlis tl env) env))))))))
+
+(! append (^ (a b)
+   	     (if a	     	 
+		 (; (. a) (append (, a) b))
+          {else} b)))
+
+(! pair (^ (a b)
+   	   (if a	       
+	       (; (; (. a) (. b)) (pair (, a) (, b)))
+	{else} ())))
+
+(! lookup (^ (sym env)
+   	     (? ((= env ()) {=>} ())
+	     	((= (. (. env)) sym) {=>} (, (. env)))
+		(t {=>} (lookup sym (, env))))))
+
+(! extend-env (^ (sym val env)
+   	      	 (repl (disp (; 'extended (; 'environment (; (; sym ()) ()))))
+		       (; (; sym val) env))))
+
+(! apply (^ (rator rands env)
+   	    (? ((@ rator) {=>} '(ERR)) { ?! }
+	       ((= (. rator) '^) {=>} (eval (. (, (, rator)))
+	       	      	     	            (append (pair (. (, rator)) rands) env)))
+	       (t {=>} '(ERR)))))
+
+(! evlis (^ (el env)
+   	    (if el	    	
+		(; (eval (. el) env) (evlis (, el) env))
+         {else} ())))
+
+(! eval-cond (^ (cl env)
+   	     	(if cl
+                    (if (eval (. (. cl)) env)
+		    	(eval (. (, (. cl))) env)
+                 {else} (eval-cond (, cl) env))
+             {else} ())))
+
+(! let-list-2-env (^ (ll env)
+   		     (if ll
+		     	 (; (; (. (. ll))
+			       (eval (. (, (. ll))) env))
+			    (let-list-2-env (, ll) env))
+                  {else} ()) ))
+   		  
+
+(repl (disp '(DRCZ1 ready.)) (pair '(t) '(t)))
+

@@ -1,0 +1,88 @@
+{ - brzydal, ale skuteczny... - }
+
+(! compile (^ (prg)
+   	      (if prg
+	      	  (append (comp (. prg))
+		  	  (compile (, prg)))
+           {else} ())))
+
+(! comp (^ (expr)
+   	   (? ((= expr ()) {=>} '(CONST ()))
+	      ((# expr) {=>} (list 'CONST expr))
+	      ((@ expr) {=>} (if (is-primop? expr) (comp-primop expr) {else} (list 'LOOKUP expr)))
+	      ((= (. expr) 'quote) {=>} (list 'const (second expr)))
+	      ((= (. expr) '!) {=>} (append (comp (third expr)) (list 'NAME (second expr))))
+	      ((= (. expr) 'if) {=>} (append (comp (second expr))
+	      	     	   	     	     (list 'SELECT (comp (third expr)) (comp (fourth expr)))))
+	      ((= (. expr) '^) {=>} (list 'PROC (append (name-block (second expr))
+	      	     	       	    	  		(append (comp (third expr))
+								(forget-block (reverse (second expr)))))))
+	      (t {=>} (comp-app (. expr) expr))
+   	   )))
+
+(! comp-primop (^ (e)
+   	       	  (? ((= e ';) {=>} '(CONS))
+		     ((= e '.) {=>} '(CAR))
+		     ((= e ',) {=>} '(CDR))
+		     ((= e '#) {=>} '(NUM))
+		     ((= e '@) {=>} '(ATOM))
+		     ((= e '=) {=>} '(EQ))
+		     ((= e 'disp) {=>} '(DISP))
+		     ((= e 'read) {=>} '(READ))
+		     ((= e '+) {=>} '(ADD))
+		     ((= e '-) {=>} '(SUB))
+		     ((= e '*) {=>} '(MUL))
+		     ((= e '/) {=>} '(DIV))
+		     ((= e '%) {=>} '(MOD))
+		     ((= e '>) {=>} '(GT))
+		     ((= e '<) {=>} '(LT))
+		     (T {=>} 'ERR!)
+		  )))
+
+(! comp-app (^ (op app) (complis (reverse app) (if (is-primop? op) () '(APPLY)))))
+
+(! complis (^ (exprs postfix)
+   	      (if exprs
+	      	  (append (comp (. exprs))
+		          (complis (, exprs) postfix))
+           {else} postfix)))
+
+ 
+(! name-block (^ (varlist)
+   	      	 (if varlist
+		     (; 'NAME
+		     	(; (. varlist)
+			   (name-block (, varlist))))
+ 	      {else} ())))
+
+(! forget-block (^ (varlist)
+   	      	   (if varlist
+		       (; 'FORGET
+		     	  (; (. varlist)
+			     (forget-block (, varlist))))
+ 	      {else} ())))
+
+(! is-primop? (^ (sym) (member? sym '(; . , # @ = disp read + - * / % > <))))
+
+(! second (^ (l) (. (, l))))
+(! third  (^ (l) (. (, (, l)))))
+(! fourth (^ (l) (. (, (, (, l))))))
+
+(! append (^ (l1 l2)
+   	     (if l1
+	     	 (; (. l1) (append (, l1) l2))
+		 l2)))
+
+(! reverse (^ (l) (_rev l ())))
+(! _rev (^ (pnd res)
+   	   (if pnd
+	       (_rev (, pnd) (; (. pnd) res))
+	{else} res)))
+
+(! member? (^ (e l)
+   	      (? ((= l ()) ())
+	      	 ((= (. l) e) T)
+		 (T (member? e (, l))))))
+
+{ - ,,main'' - }
+(compile (read))

@@ -1,0 +1,53 @@
+-= drczalang project v1.1, 2012-08-06 M.J.Stańczyk, drcz@o2.pl =-
+
+INSTALLATION:
+=============
+
+  cd c-src/
+  make clean
+  make all
+  make install
+
+Everything you need goes to the-thing/.
+
+To use emacs mode for drcz1 just add the following to your .emacs file:
+
+  (global-set-key [(f3)] 'drcz-generic-mode) ; for example...
+  (setq show-paren-delay 0
+        show-paren-style 'parenthesis)
+  (show-paren-mode 1)
+  (require 'generic-x)
+  (define-generic-mode 'drcz-generic-mode
+    '(( "{" . "}")) 
+    '()
+    '(("[()]" . font-lock-type-face))
+    '()
+      nil
+     "drczX mode")
+
+
+USAGE EXAMPLES:
+===============
+
+  cd the-thing/
+
+Make sure to chmod +x the following files: comp-d0, comp-d1, desugar, compile, trelim, drcz1.
+
+To run drcz1 interpreter:
+  ./drcz1
+or 
+  ./DRCZ d1.bc
+
+To run drcz1 with bigger ,,heap'' use -p <size> option, e.g.:
+  ./DRCZ -p 3000000 d1.bc
+The size is in CONS cells, not bytes. To check the size of CONS cell on your system try:
+  ./DRCZ -c
+Please do remember that memory pool uses stack for storing CONS-cell addresses, which again takes <size>*sizeof(SE *) bytes,
+and that currently we still use malloc/free for strings.
+
+To compile drcz1 program:
+  ./compile <source filename>
+If all goes well it produces file named <source filename>.bc; to run it:
+  ./DRCZ [-p <size>] <source filename>.bc
+
+Good luck.

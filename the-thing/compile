@@ -1,0 +1,4 @@
+#!/bin/bash
+rm -f $1.bc
+#cat $1 | awk 'BEGIN {print "("} {print $0 } END {print ")" }' | ${0%/*}/comp-d1 | ${0%/*}/asm > $1.bc
+ cat $1 | awk 'BEGIN {print "("} {print $0 } END {print ")" }' | ${0%/*}/comp-d1 | ${0%/*}/trelim | ${0%/*}/asm > $1.bc

@@ -1,0 +1,106 @@
+{  -- Maszyna Abstrakcyjna DRCZ* --  }
+{ - Gdańsk 2012-07-16 M.J.Stańczyk - }
+
+(! run (^ (code stack)
+       	  (run-drc '() stack (; code ()))))
+
+{- ,,nieudolny lukier'' -}
+(! .. (^ (e) (. (. e))))
+(! ., (^ (e) (. (, e))))
+(! ,. (^ (e) (, (. e))))
+(! ,, (^ (e) (, (, e))))
+(! .., (^ (e) (. (. (, e)))))
+(! .,. (^ (e) (. (, (. e)))))
+(! .,, (^ (e) (. (, (, e)))))
+(! ,,. (^ (e) (, (, (. e)))))
+(! ,,,. (^ (e) (, (, (, (. e))))))
+(! .,,. (^ (e) (. (, (, (. e))))))
+
+{- główny jeździec -}
+(! run-drc (^ (d r c)
+   	   (? ((= c ()) {=>} (. r))
+	      ((= (. c) ()) {=>} (run-drc d r (, c)))
+	      (T {=>} ((^ (drc) (run-drc (. (disp drc)) (., drc) (.,, drc)))
+	      	       (step (.. c) d r c))))))
+
+{- relacja przejścia stanów => (Step) -}
+(! step (^ (op d r c)
+           (? ((= op 'NAME)
+	       {=>} (new-state (env-push (.,. c) (. r) d) (, r) (; (,,. c) (, c))))
+ 	      ((= op 'FORGET)
+	       {=>} (new-state (env-pop (.,. c) d) r (; (,,. c) (, c))))
+	       ((= op 'LOOKUP)
+	       {=>} (new-state d (; (lookup (.,. c) d) r) (; (,,. c) (, c))))
+	       ((= op 'CONST)
+	       {=>} (new-state d (; (.,. c) r) (; (,,. c) (, c))))
+	       ((= op 'PROC)
+	       {=>} (new-state d (; (.,. c) r) (; (,,. c) (, c))))
+	       ((= op 'SELECT)
+	       {=>} (if (= (. r) ())
+	         {then} (new-state d (, r) (; (.,,. c) (; (,,,. c) (, c))))
+  	         {else} (new-state d (, r) (; (.,. c) (; (,,,. c) (, c))))))
+	       ((= op 'APPLY)
+	       {=>} (new-state d (, r) (; (. r) (; (,. c) (, c)))))
+	       ((= op 'CAR)
+	       {=>} (new-state d (; (.. r) (, r)) (; (,. c) (, c))))
+	       ((= op 'CDR)
+	       {=>} (new-state d (; (,. r) (, r)) (; (,. c) (, c))))
+	       ((= op 'CONS)
+	       {=>} (new-state d (; (; (. r) (., r)) (,, r)) (; (,. c) (, c))))
+	       ((= op 'EQ)
+	       {=>} (new-state d (; (= (. r) (., r)) (,, r)) (; (,. c) (, c))))
+	       ((= op 'ATOM)
+	       {=>} (new-state d (; (@ (. r)) (, r)) (; (,. c) (, c))))
+	       ((= op 'NUM)
+	       {=>} (new-state d (; (# (. r)) (, r)) (; (,. c) (, c))))
+	       ((= op 'GT)
+	       {=>} (new-state d (; (> (. r) (., r)) (,, r)) (; (,. c) (, c))))
+	       ((= op 'LT)
+	       {=>} (new-state d (; (< (. r) (., r)) (,, r)) (; (,. c) (, c))))
+	       ((= op 'ADD)
+	       {=>} (new-state d (; (+ (. r) (., r)) (,, r)) (; (,. c) (, c))))
+	       ((= op 'MUL)
+	       {=>} (new-state d (; (* (. r) (., r)) (,, r)) (; (,. c) (, c))))
+	       ((= op 'SUB)
+	       {=>} (new-state d (; (- (. r) (., r)) (,, r)) (; (,. c) (, c))))
+	       ((= op 'DIV)
+	       {=>} (new-state d (; (/ (. r) (., r)) (,, r)) (; (,. c) (, c))))
+	       ((= op 'MOD)
+	       {=>} (new-state d (; (% (. r) (., r)) (,, r)) (; (,. c) (, c))))
+	       (T {=>} 'ERR))))
+
+(! new-state (^ (d r c) (list d r c)))
+
+{- plus ,,zarządzanie środowiskiem'' -}
+(! env-push (^ (key val env)
+   	       (; (; key val) env)))
+
+(! env-pop (^ (key env)
+   	      (? ((= env ()) {=>} ())
+	      	 ((= (.. env) key) {=>} (, env))
+		 (T {=>} (; (. env) (env-pop key (, env)))))))
+
+(! lookup (^ (key env)
+   	     (? ((= env ()) {=>} ())
+	     	((= (.. env) key) {=>} (,. env))
+		(T {=>} (lookup key (, env))))))
+
+{---------------------------------------------------------------------------------}
+
+{ np 
+(! fact '(PROC (NAME n
+   		 LOOKUP n
+		 CONST 0
+		 EQ
+		 SELECT (CONST 1)
+		 	(LOOKUP n
+			 CONST 1
+			 LOOKUP n
+			 SUB
+			 LOOKUP silnia
+			 APPLY
+			 MUL)
+		 FORGET n)
+            NAME silnia
+	   CONST 2 LOOKUP silnia APPLY))
+(run fact ()) }

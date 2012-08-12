@@ -1,0 +1,58 @@
+{ - takes drcz0 compiler output and eliminates unnecessary .C overhead in tail recursive calls. - }
+
+{ Uses two simple rules:
+  1) convert sequence (APPLY . fb) to fb::(TRAPPLY),
+  2) convert sequence (SELECT b1 b2 . fb) to (SRELECT b1::fb b2::fb)
+  where fb stands for 'forget-block' - sequence (list) of 0 or more FORGETs,
+  :: for concatenation (append), and . for pairing (cons). }
+
+(! tr-eliminate (^ (code)
+                   (if code
+		       (let ((cmd (. code))
+                             (tl (, code)))
+                            {in} (? ((= cmd 'PROC) {->} (; 'PROC
+                                                           (; (tr-eliminate (. tl))
+                                                              (tr-eliminate (, tl)))))
+                                    ((= cmd 'CONST) {->} (; 'CONST
+                                                            (; (. tl)
+                                                               (tr-eliminate (, tl)))))
+                                    ((= cmd 'NAME) {->} (; 'NAME
+                                                           (; (. tl)
+                                                              (tr-eliminate (, tl)))))
+                                    ((= cmd 'FORGET) {->} (; 'FORGET
+                                                             (; (. tl)
+                                                                (tr-eliminate (, tl)))))
+                                    ((= cmd 'LOOKUP) {->} (; 'LOOKUP
+                                                             (; (. tl)
+                                                                (tr-eliminate (, tl)))))
+                                    ((= cmd 'SELECT)
+                                     {->} (if (is-forget-block? (, (, tl)))
+                                              (; 'SRELECT
+                                                  (; (tr-eliminate (append (. tl) (, (, tl))))
+                                                     (; (tr-eliminate (append (. (, tl)) (, (, tl))))
+                                                        ())))
+                                              {else} (; 'SELECT
+                                                        (; (tr-eliminate (. tl))
+                                                           (; (tr-eliminate (. (, tl)))
+                                                              (tr-eliminate (, (, tl))))))))
+                                    ((= cmd 'APPLY)
+                                     {->} (if (is-forget-block? tl)
+                                              (append tl '(TRAPPLY))
+                                              {else}(; 'APPLY (tr-eliminate tl))))
+                                    (T {->} (; cmd (tr-eliminate tl)))
+                                 ))
+                       {else} ())))
+
+(! is-forget-block? (^ (code)
+                       (if code
+                           (and (= (. code) 'FORGET)
+                                (is-forget-block? (, (, code))))
+                           {else} T)))
+
+(! append (^ (l1 l2)
+   	     (if l1
+	     	 (; (. l1) (append (, l1) l2))
+		 l2)))
+
+{- ,,main'' -}
+(tr-eliminate (read))
