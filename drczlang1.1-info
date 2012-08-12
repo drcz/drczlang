@@ -12,10 +12,17 @@ Everything you need goes to the-thing/.
 
 To use emacs mode for drcz1 just add the following to your .emacs file:
 
-  (global-set-key [(f3)] 'drcz-generic-mode) ; for example...
+  (setq scheme-program-name "<path to your drczlang install>/the-thing/drcz1")
+
+  (add-to-list 'auto-mode-alist '("\\.drcz1\\'" . drcz-generic-mode))
+  (add-to-list 'auto-mode-alist '("\\.drcz0\\'" . drcz-generic-mode))
+
+  (global-set-key [(f6)] 'run-scheme) ; for example...
+  (global-set-key [(f3)] 'drcz-generic-mode) ; ...
   (setq show-paren-delay 0
         show-paren-style 'parenthesis)
   (show-paren-mode 1)
+
   (require 'generic-x)
   (define-generic-mode 'drcz-generic-mode
     '(( "{" . "}")) 
