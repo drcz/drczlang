@@ -1,2 +1,2 @@
 #!/bin/bash
-${0%/*}/DRCZ -s ${0%/*}/tr-eliminate.drcz1.bc
+${0%/*}/DRCZ -s ${0%/*}/tr-eliminate.bc

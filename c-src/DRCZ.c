@@ -1,4 +1,5 @@
 #include<assert.h>
+#include<stdio.h>
 #include "SE.h"
 #include "DRCZ.h"
 #include "parser.h"
@@ -26,6 +27,7 @@ unsigned long get_number_of_steps() { return no_steps; }
 
 
 SE *run() {
+  FILE *f;
   SE *arg1,*arg2;
   SE *current_frame;
 
@@ -162,17 +164,6 @@ SE *run() {
     code_next_1();
     goto top;
 
-  case O_DISP: //////////////////////////////////////////////////////////////////////////////////////////////////
-    write_se(car(Rreg),stdout); printf("\n");
-    code_next_1();
-    goto top;
-
-  case O_READ: //////////////////////////////////////////////////////////////////////////////////////////////////
-    if(!silent) printf(">");
-    R_push(read_se(stdin));
-    code_next_1();
-    goto top;
-
 
   case O_ADD: ///////////////////////////////////////////////////////////////////////////////////////////////////
     arg1=R_pop(); arg2=R_pop();
@@ -246,6 +237,35 @@ SE *run() {
     destroy(arg1);
     destroy(arg2);
     goto top;
+
+
+  case O_DISP: //////////////////////////////////////////////////////////////////////////////////////////////////
+    write_se(car(Rreg),stdout); printf("\n");
+    code_next_1();
+    goto top;
+
+  case O_READ: //////////////////////////////////////////////////////////////////////////////////////////////////
+    if(!silent) printf(">");
+    R_push(read_se(stdin));
+    code_next_1();
+    goto top;
+
+  case O_SAVE: //////////////////////////////////////////////////////////////////////////////////////////////////
+    arg1=R_pop();
+    f=fopen(symval(arg1),"w");
+    write_se(car(Rreg),f);
+    fclose(f);
+    code_next_1();
+    goto top;
+
+  case O_LOAD: //////////////////////////////////////////////////////////////////////////////////////////////////
+    arg1=R_pop();
+    f=fopen(symval(arg1),"r");
+    R_push(read_se(f));
+    fclose(f);
+    code_next_1();
+    goto top;
+
 
   default: assert(0==1); /* ;) */
   }

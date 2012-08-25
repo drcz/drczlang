@@ -117,6 +117,8 @@ int opcode(char *op) {
   else if(strcmp(op,"mod")==0) return O_MOD;
   else if(strcmp(op,"disp")==0) return O_DISP;
   else if(strcmp(op,"read")==0) return O_READ;
+  else if(strcmp(op,"save")==0) return O_SAVE;
+  else if(strcmp(op,"load")==0) return O_LOAD;
   else assert(0==1);
 } /* `cat ops`split("\n").each{|a| a=a.strip;puts "  else if(strcmp(op,\"#{a.downcase}\")==0) return O_#{a};"} */
 

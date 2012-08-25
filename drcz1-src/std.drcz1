@@ -1,0 +1,73 @@
+{- quite usefull datastructures -}
+
+{= LISTs: ====================================================================}
+
+{ We use these ones so often, we found no reason to prepend their names with
+  any singature - after all McCarthy called his language LISP for a reason... }
+
+(! empty? (^ (l) (= l ())))
+(! first  (^ (l) (. l)))
+(! second (^ (l) (. (, l))))
+(! third  (^ (l) (. (, (, l)))))
+(! fourth (^ (l) (. (, (, (, l))))))
+(! rest   (^ (l) (, l)))
+(! push   (^ (el l) (; el l)))
+
+(! append (^ (a b)
+             (if a
+                 (; (. a) (append (, a) b))
+                 {else} b)))
+
+(! reverse (^ (l)
+              (let ((rev {<-} (^ (pend res)
+                                 (if pend
+                                     (rev (, pend) (; (. pend) res))
+                                     {else} res))))
+                   {in} (rev l ())) ))
+
+(! nth (^ (n l)
+          (if (= n 1)
+              (. l)
+              {else} (nth (- n 1) (, l)))))
+
+(! map (^ (proc l)
+          (if l
+              (; (proc (. l)) (map proc (, l)))
+              {else} ())))
+
+
+{= A-LISTs: ==================================================================}
+
+(! AL:new (^ (keys vals)
+             (if keys
+                 (push (; (first keys) (first vals))
+                         (AL:new (rest keys) (rest vals)))
+                 {else} ())))
+
+(! AL:keys (^ (al)
+              (if (empty? al)
+                  ()
+                  {else} (push (. (first al))
+                               (AL:keys (rest al))))))
+
+(! AL:add (^ (key val al)
+             (push (; key val) al)))
+
+{ notice these two take additional argument 'eq?' - a procedure of type ValxVal->Boolean
+  settling equivalence of two values. }
+
+(! AL:update (^ (key val al eq?)
+                (if (empty? al)
+                    (AL:add key val ())
+                    {else} (if (eq? (. (first al)) key)
+                               (AL:add key val (, al))
+                               {else} (push (first al)
+                                            (AL:update key val (rest al) eq?))))))
+                    
+(! AL:assoc (^ (key al eq?)
+               (if (empty? al)
+                   'ERR
+                   {else} (if (eq? key (. (first al)))
+                              (, (first al))
+                              {else} (AL:assoc key (rest al) eq?)))))
+

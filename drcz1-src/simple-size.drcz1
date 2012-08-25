@@ -1,0 +1,7 @@
+(! size (^ (code)
+           (if (@ code)
+               1
+               {else} (+ 1
+                         (+ (size (. code))
+                            (size (, code)))))))
+(size (read))

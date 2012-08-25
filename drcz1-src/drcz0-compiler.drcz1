@@ -27,8 +27,6 @@
 		     ((= e '#) {=>} '(NUM))
 		     ((= e '@) {=>} '(ATOM))
 		     ((= e '=) {=>} '(EQ))
-		     ((= e 'disp) {=>} '(DISP))
-		     ((= e 'read) {=>} '(READ))
 		     ((= e '+) {=>} '(ADD))
 		     ((= e '-) {=>} '(SUB))
 		     ((= e '*) {=>} '(MUL))
@@ -36,6 +34,10 @@
 		     ((= e '%) {=>} '(MOD))
 		     ((= e '>) {=>} '(GT))
 		     ((= e '<) {=>} '(LT))
+		     ((= e 'disp) {=>} '(DISP))
+		     ((= e 'read) {=>} '(READ))
+		     ((= e 'save) {=>} '(SAVE))
+		     ((= e 'load) {=>} '(LOAD))
 		     (T {=>} 'ERR!)
 		  )))
 
@@ -62,7 +64,7 @@
 			     (forget-block (, varlist))))
  	      {else} ())))
 
-(! is-primop? (^ (sym) (member? sym '(; . , # @ = disp read + - * / % > <))))
+(! is-primop? (^ (sym) (member? sym '(; . , # @ = + - * / % > < disp read save load))))
 
 (! second (^ (l) (. (, l))))
 (! third  (^ (l) (. (, (, l)))))

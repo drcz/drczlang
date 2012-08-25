@@ -44,6 +44,8 @@
                                ((= hd '<) {=>} (< (eval (. tl) env) (eval (. (, tl)) env)))
                                ((= hd 'read) {=>} (read))
                                ((= hd 'disp) {=>} (disp (eval (. tl) env)))
+                               ((= hd 'load) {=>} (load (. tl)))
+                               ((= hd 'save) {=>} (save (. tl) (eval (. (, tl)) env)))
                                { other applications: }
                                (T (apply (eval hd env) (evlis tl env) env))))))))
 

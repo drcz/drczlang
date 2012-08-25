@@ -1,0 +1,166 @@
+{** The Great Inliners **}
+
+{ Whatever criteria we pick for unfoldability, we always perform the same steps:
+  1. find first unfoldable procedure definition,
+  2. if none was found finish,
+  3. inline all calls of this procedure, mark it as inlined and go back to 1. }
+
+(! inline-procs
+  (^ (code unfoldable? inlined)
+     (let ((  term-proc {<-} (find-first-proc-def unfoldable? code inlined))
+           (unfoldable? {<~} unfoldable?)
+           (    inlined {<-} inlined)
+           (       code {<~} code))	  
+          {in} (if term-proc
+                   (inline-procs (inline-calls (definition-name term-proc)
+                                               (definition-value term-proc)
+                                               code)
+                                 unfoldable?
+                                 (push (definition-name term-proc) inlined))
+                   {else} code))))
+
+(! find-first-proc-def
+  (^ (criteria? code inlined)
+     (if (@ code)
+         ()
+         {else} (let (( cur-code {<-} (first code))
+                      (rest-code {<-} (rest code))
+                      (criteria? {<~} criteria?)
+                      (  inlined {<~} inlined))
+                     {in} (if (and (criteria? cur-code)
+                                   (not (member? (definition-name cur-code) inlined)))
+                              cur-code
+                              {else} (find-first-proc-def criteria? rest-code inlined))))))
+
+{------------------------------------------------------------------------------------------------------}
+{ We start with very naive (but nevertheless usefull) strategy of exhaustively inlining all procedures
+  which don't call other procedures - we call such procedures Terminal. }
+
+(! inliner1 (^ (code) (inline-procs code terminal-proc-def? ())))
+
+{------------------------------------------------------------------------------------------------------}
+{ By the class of Terminal Expressions (TE) we call the intersection of all subclasses
+  of SExp containing classes of Atoms and Quoted Expressions and enclosed under primitive
+  operator applications, conditional expressions and lambda abstractions.
+
+  In other words we call an SExp Terminal Expression if either:
+  * it belongs to the class of Atoms,
+  * it belongs to the class of Quoted Expressions,
+  * it has the form '(o t1 ... tn)' where 'o' stands for primitive operator and
+    't1',...,'tn' stand for Terminal Expressions,
+  * it has the form '(if c t e)' where 'c','t' and 'e' stand for Terminal Expressions,
+  * it has the form '(^ a b)' where 'a' stands for list of symbols and 'b' for
+    Terminal Expression. }
+
+(! terminal? (^ (expr)
+                (if (@ expr)
+                    T
+                    {else} (let ((rator {<-} (first expr))
+                                 (rands {<-} (rest expr)))
+                                {in} (or (and (= rator '^) (terminal? (second rands))) {!!}
+                                         (and (member? rator '(. , ; # @ = < > + - * / % if))
+                                              (all (map terminal? rands))))))))
+
+
+{ And now we call a procedure Terminal if its body belongs to TE: }
+
+(! terminal-proc-def? (^ (code)
+                         (and (proc-def? code)
+                              (terminal? (definition-value code)))))
+
+{------------------------------------------------------------------------------------------------------}
+(! inline-calls
+  (^ (label lambda code)
+     (if (@ code)
+         code
+         {else} (let (  (code {<-} (mapg (^ (x args) (inline-calls (first args) (second args) x))
+                                         (list label lambda)
+                                         code))
+                      ( label {<~} label)
+                      (lambda {<~} lambda))
+                     {in} (if (= (first code) label)
+                              (unfold lambda code)
+                              {else} code)))))
+
+{ To unfold lambda L in place of its call one has to take arguments A of the call, match them with lambda
+  arguments names N and then replace in L's body all occurrences of names from N with their corresponding
+  arguments from A. }
+
+(! unfold (^ (lambda call)
+             (let ((   args {<-} (rest call))
+                   (arglist {<-} (second lambda))
+                   (   body {<-} (third lambda)))
+                  {in} (subst-list (pair arglist args) body))))
+
+(! subst-list (^ (bindings expr)
+                 (if bindings                     
+                     (let ((rest-bindings {<-} (rest bindings))                           
+                           (     new-expr {<-} (substitute (. (first bindings))
+                                                     {for} (, (first bindings))
+                                                      {in} expr)))
+                          {in} (subst-list rest-bindings new-expr))
+                     {else} expr)))
+
+(! substitute (^ (var replacement expr)
+                 (? ((= expr ()) {=>} ())
+                    (   (# expr) {=>} expr)
+                    (   (@ expr) {=>} (if (= var expr)
+                                          replacement
+                                          {else} expr))
+                    (          T {=>} (push (substitute var replacement (first expr))
+                                            (substitute var replacement (rest expr)))))))
+
+{------------------------------------------------------------------------------------------------------}
+{- casual shit -}
+
+(! empty? (^ (l) (= l ())))
+(! first  (^ (l) (. l)))
+(! second (^ (l) (. (, l))))
+(! third  (^ (l) (. (, (, l)))))
+(! fourth (^ (l) (. (, (, (, l))))))
+(! rest   (^ (l) (, l)))
+(! push   (^ (el l) (; el l)))
+
+(! pair (^ (a b) (if a (; (; (. a) (. b)) (pair (, a) (, b))) {else} ())))
+
+(! member? (^ (e l)
+              (if l
+                  (if (= e (. l)) T {else} (member? e (, l)))
+                  {else} ())))
+
+(! reduce (^ (op neutr l)
+             (if l
+                 (op (. l) (reduce op neutr (, l)))
+                 {else} neutr)))
+
+(! any (^ (l) (reduce (^ (x y) (or x y)) () l)))
+(! all (^ (l) (reduce (^ (x y) (and x y)) T l)))
+
+(! map (^ (proc l) (if l (; (proc (. l)) (map proc (, l))) ())))
+
+{ since drcz1 does not allow to use free variables, we sometimes need an awkward version of map that
+  passes additional arguments to proc: }
+
+{mapg: [Exp x SExp -> SExp] x SExp x List<SExp> -> List<SExp> }
+(! mapg (^ (proc args l) (if l (; (proc (. l) args) (mapg proc args (, l))) ())))
+
+
+{------------------------------------------------------------------------------------------------------}
+{ drcz0 syntax: }
+
+(! definition? (^ (code) (if (@ code) () {else} (= (first code) '!))))
+(! definition-name (^ (def) (second def)))
+(! definition-value (^ (def) (third def)))
+
+(! lambda? (^ (code) (if (@ code) () {else} (= (first code) '^))))
+(! lambda-arglist (^ (lambda) (second lambda)))
+(! lambda-body (^ (lambda) (third lambda)))
+
+(! proc-def? (^ (code)
+                (and (definition? code)
+                     (lambda? (definition-value code)))))
+
+{------------------------------------------------------------------------------------------------------}
+
+{-main-}
+(inliner1 (read))
