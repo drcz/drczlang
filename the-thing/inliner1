@@ -1,2 +1,2 @@
 #!/bin/bash
-${0%/*}/DRCZ -s -p 6000000 ${0%/*}/inliner1.bc
+${0%/*}/DRCZ -s -p 23000000 ${0%/*}/inliner1.bc

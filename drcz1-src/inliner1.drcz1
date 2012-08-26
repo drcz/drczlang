@@ -1,5 +1,8 @@
 {** The Great Inliners **}
 
+(include std.drcz1)
+(include drcz1-syntax.drcz1)
+
 { Whatever criteria we pick for unfoldability, we always perform the same steps:
   1. find first unfoldable procedure definition,
   2. if none was found finish,
@@ -7,9 +10,9 @@
 
 (! inline-procs
   (^ (code unfoldable? inlined)
-     (let ((  term-proc {<-} (find-first-proc-def unfoldable? code inlined))
+     (let ((  term-proc {<-} (find-first-proc-def unfoldable? (disp code) inlined))
            (unfoldable? {<~} unfoldable?)
-           (    inlined {<-} inlined)
+           (    inlined {<~} inlined)
            (       code {<~} code))	  
           {in} (if term-proc
                    (inline-procs (inline-calls (definition-name term-proc)
@@ -59,8 +62,12 @@
                                  (rands {<-} (rest expr)))
                                 {in} (or (and (= rator '^) (terminal? (second rands))) {!!}
                                          (and (member? rator '(. , ; # @ = < > + - * / % if))
-                                              (all (map terminal? rands))))))))
+                                              (list-of-terminals? rands))))))))
 
+(! list-of-terminals? (^ (l)
+                         (? ((empty? l) {=>} T)
+                            ((terminal? (first l)) {=>} (list-of-terminals (rest l)))
+                            (T {=>} ()))))
 
 { And now we call a procedure Terminal if its body belongs to TE: }
 
@@ -69,6 +76,7 @@
                               (terminal? (definition-value code)))))
 
 {------------------------------------------------------------------------------------------------------}
+
 (! inline-calls
   (^ (label lambda code)
      (if (@ code)
@@ -109,56 +117,6 @@
                                           {else} expr))
                     (          T {=>} (push (substitute var replacement (first expr))
                                             (substitute var replacement (rest expr)))))))
-
-{------------------------------------------------------------------------------------------------------}
-{- casual shit -}
-
-(! empty? (^ (l) (= l ())))
-(! first  (^ (l) (. l)))
-(! second (^ (l) (. (, l))))
-(! third  (^ (l) (. (, (, l)))))
-(! fourth (^ (l) (. (, (, (, l))))))
-(! rest   (^ (l) (, l)))
-(! push   (^ (el l) (; el l)))
-
-(! pair (^ (a b) (if a (; (; (. a) (. b)) (pair (, a) (, b))) {else} ())))
-
-(! member? (^ (e l)
-              (if l
-                  (if (= e (. l)) T {else} (member? e (, l)))
-                  {else} ())))
-
-(! reduce (^ (op neutr l)
-             (if l
-                 (op (. l) (reduce op neutr (, l)))
-                 {else} neutr)))
-
-(! any (^ (l) (reduce (^ (x y) (or x y)) () l)))
-(! all (^ (l) (reduce (^ (x y) (and x y)) T l)))
-
-(! map (^ (proc l) (if l (; (proc (. l)) (map proc (, l))) ())))
-
-{ since drcz1 does not allow to use free variables, we sometimes need an awkward version of map that
-  passes additional arguments to proc: }
-
-{mapg: [Exp x SExp -> SExp] x SExp x List<SExp> -> List<SExp> }
-(! mapg (^ (proc args l) (if l (; (proc (. l) args) (mapg proc args (, l))) ())))
-
-
-{------------------------------------------------------------------------------------------------------}
-{ drcz0 syntax: }
-
-(! definition? (^ (code) (if (@ code) () {else} (= (first code) '!))))
-(! definition-name (^ (def) (second def)))
-(! definition-value (^ (def) (third def)))
-
-(! lambda? (^ (code) (if (@ code) () {else} (= (first code) '^))))
-(! lambda-arglist (^ (lambda) (second lambda)))
-(! lambda-body (^ (lambda) (third lambda)))
-
-(! proc-def? (^ (code)
-                (and (definition? code)
-                     (lambda? (definition-value code)))))
 
 {------------------------------------------------------------------------------------------------------}
 

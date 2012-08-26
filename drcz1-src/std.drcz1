@@ -1,4 +1,4 @@
-{- quite usefull datastructures -}
+( {- quite usefull datastructures -}
 
 {= LISTs: ====================================================================}
 
@@ -13,36 +13,53 @@
 (! rest   (^ (l) (, l)))
 (! push   (^ (el l) (; el l)))
 
+(! length (^ (l)
+             (if l (+ 1 (length (rest l))) {else} 0)))
+
 (! append (^ (a b)
-             (if a
-                 (; (. a) (append (, a) b))
-                 {else} b)))
+             (if (empty? a)
+                 b
+                 {else} (push (first a) (append (rest a) b)))))
+
+(! pair (^ (a b) (if a (push (; (first a) (first b)) (pair (rest a) (rest b))) {else} ())))
 
 (! reverse (^ (l)
               (let ((rev {<-} (^ (pend res)
-                                 (if pend
-                                     (rev (, pend) (; (. pend) res))
-                                     {else} res))))
-                   {in} (rev l ())) ))
+                                 (if (empty? pend)
+                                     res
+                                     {else}(rev (rest pend) (push (first pend) res))))))
+                   {in} (rev l ()))))
 
 (! nth (^ (n l)
           (if (= n 1)
-              (. l)
-              {else} (nth (- n 1) (, l)))))
+              (first l)
+              {else} (nth (- n 1) (rest l)))))
 
 (! map (^ (proc l)
-          (if l
-              (; (proc (. l)) (map proc (, l)))
-              {else} ())))
+          (if (empty? l)
+              ()
+              {else} (push (proc (first l)) (map proc (rest l))))))
+
+{ since drcz1 does not allow to use free variables, we sometimes need an awkward version of map that
+  passes additional arguments to proc: }
+
+{mapg: [Exp x SExp -> SExp] x SExp x List<SExp> -> List<SExp> }
+(! mapg (^ (proc args l) (if l (; (proc (. l) args) (mapg proc args (, l))) ())))
+
+(! member? (^ (el l)
+              (? ((empty? l) {=>} ())
+                 ((= el (first l)) {=>} T)
+                 (T {=>} (member? el (rest l))))))
+
+(! reduce (^ (op neutr l)
+             (if l
+                 (op (. l) (reduce op neutr (, l)))
+                 {else} neutr)))
 
 
 {= A-LISTs: ==================================================================}
 
-(! AL:new (^ (keys vals)
-             (if keys
-                 (push (; (first keys) (first vals))
-                         (AL:new (rest keys) (rest vals)))
-                 {else} ())))
+(! AL:new (^ (keys vals) (pair keys vals)))
 
 (! AL:keys (^ (al)
               (if (empty? al)
@@ -71,3 +88,4 @@
                               (, (first al))
                               {else} (AL:assoc key (rest al) eq?)))))
 
+{=============================================================================} )

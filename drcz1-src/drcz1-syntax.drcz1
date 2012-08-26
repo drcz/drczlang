@@ -1,0 +1,17 @@
+( {** we use them quite often **}
+
+{- drcz1 syntax: -}
+
+(! definition? (^ (code) (if (@ code) () {else} (= (first code) '!))))
+(! definition-name (^ (def) (second def)))
+(! definition-value (^ (def) (third def)))
+
+(! lambda? (^ (code) (if (@ code) () {else} (= (first code) '^))))
+(! lambda-arglist (^ (lambda) (second lambda)))
+(! lambda-body (^ (lambda) (third lambda)))
+
+(! proc-def? (^ (code)
+                (and (definition? code)
+                     (lambda? (definition-value code)))))
+
+{==============================================================================})

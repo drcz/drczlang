@@ -23,7 +23,9 @@ enum opcodes {
 
   O_EQ, O_NUM, O_ATOM, O_CAR, O_CDR, O_CONS, /* ,,lisp'' */
   O_GT, O_LT, O_ADD, O_SUB, O_MUL, O_DIV, O_MOD, /* ,,<Z,+,*>'' */
-  O_DISP, O_READ, O_LOAD, O_SAVE /* i/o */
+  O_DISP, O_READ, O_LOAD, O_SAVE, /* i/o */
+
+  O_HALT
 };
 
 /* Operacje na Rreg... */

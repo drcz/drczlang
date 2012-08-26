@@ -38,6 +38,7 @@
 		     ((= e 'read) {=>} '(READ))
 		     ((= e 'save) {=>} '(SAVE))
 		     ((= e 'load) {=>} '(LOAD))
+		     ((= e 'halt) {=>} '(HALT))
 		     (T {=>} 'ERR!)
 		  )))
 
@@ -64,7 +65,7 @@
 			     (forget-block (, varlist))))
  	      {else} ())))
 
-(! is-primop? (^ (sym) (member? sym '(; . , # @ = + - * / % > < disp read save load))))
+(! is-primop? (^ (sym) (member? sym '(; . , # @ = + - * / % > < disp read save load halt))))
 
 (! second (^ (l) (. (, l))))
 (! third  (^ (l) (. (, (, l)))))

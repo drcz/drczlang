@@ -3,7 +3,7 @@
   Zamienia formy "?" (COND), "and" i "or" na zagnieżdżone wyrażenia warunkowe,
   formy "let" na wyrażenia lambda, oraz operator o zmiennej ilości argumentów
   "list" na zagnieżdżenie operatorów ";" (CONS).
-  + dodano obsługę "not"...
+  + dodano obsługę "not", "all" i "any",
   + poprawiony let2cons (teraz woła desugar rekursywnie po wiązanych wartościach).
 
   Innymi słowy kompilator drcz1 -> drcz0. }
@@ -15,6 +15,8 @@
 		 ((= (. code) 'not) (not2if (, code) desugar))
 		 ((= (. code) 'or) (or2if (, code) desugar))
 		 ((= (. code) 'and) (and2if (, code) desugar))
+		 ((= (. code) 'all) (all2if (, code) desugar))
+		 ((= (. code) 'any) (any2if (, code) desugar))
 		 ((= (. code) 'let) (let2lambda (, code) desugar))
 		 ((= (. code) 'list) (list2cons (, code) desugar))
 		 (T (; (desugar (. code))
@@ -45,9 +47,26 @@
 { (and p1 p2) -> (if [p1] [p2] ()) }
 (! and2if (^ (andexp cont)
    	     (list 'if
-	     	    (cont (. andexp))
+	     	    (cont (. andexp))             
 		    (cont (., andexp))
 		    ())))
+
+(! any2if (^ (pl cont)
+             (if pl
+                 (list 'if
+                       (cont (. pl))
+                       'T
+                       (any2if (, pl) cont))
+                 {else}())))
+
+(! all2if (^ (pl cont)
+             (if pl
+                 (list 'if
+                       (cont (. pl))                       
+                       (all2if (, pl) cont)
+                       ())
+                 {else}'T)))
+
 
 { (let ((s1 e1) ... (sn en)) e) -> ((^ (s1 ... sn) e) e1 ... en) }
 (! let2lambda (^ (letexp cont)

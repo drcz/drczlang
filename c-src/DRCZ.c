@@ -1,5 +1,6 @@
 #include<assert.h>
 #include<stdio.h>
+#include<stdlib.h>
 #include "SE.h"
 #include "DRCZ.h"
 #include "parser.h"
@@ -266,6 +267,9 @@ SE *run() {
     code_next_1();
     goto top;
 
+  case O_HALT: //////////////////////////////////////////////////////////////////////////////////////////////////
+    if(!silent) printf("<HALT!>\n");
+    exit(1);
 
   default: assert(0==1); /* ;) */
   }
