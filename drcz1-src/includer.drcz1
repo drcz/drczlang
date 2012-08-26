@@ -1,0 +1,20 @@
+{- reads drcz1 source and replaces each (include <file>) with <file>s content. 2012-08-26 -}
+
+(include std.drcz1)
+
+{- datatypes -}
+(! include-form? (^ (e) (all (not (@ e))
+                             (= (. e) 'include)
+                             (= (length e) 2))))
+
+(! include-filename (^ (e) (second e)))
+
+{- The Includer -}
+(! includer (^ (code)
+               (? ((@ code) {=>} code)
+                  ((include-form? (first code)) {=>} (append (load (include-filename (first code)))
+                                                                   (includer (rest code))))
+                  (T {=>} (push (first code) (includer (rest code)))))))
+
+{- main -}
+(includer (read))

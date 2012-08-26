@@ -38,7 +38,8 @@ USAGE EXAMPLES:
 
   cd the-thing/
 
-Make sure to chmod +x the following files: comp-d0, comp-d1, desugar, compile, trelim, drcz1.
+Make sure to chmod +x the following files: comp-d0, comp-d1, desugar, compile, trelim, drcz1, inliner1,
+compile-inline, comp-d1-inline.
 
 To run drcz1 interpreter:
   ./drcz1
@@ -54,7 +55,14 @@ and that currently we still use malloc/free for strings.
 
 To compile drcz1 program:
   ./compile <source filename>
-If all goes well it produces file named <source filename>.bc; to run it:
+
+To compile with naive inliner:
+  ./compile-and-inline <source filename>
+
+The former might take quite a lot of memory (does code duplication and does not perofrm dead code removal yet).
+
+If all goes well they both produce file named <source filename>.bc; to run it:
   ./DRCZ [-p <size>] <source filename>.bc
+
 
 Good luck.

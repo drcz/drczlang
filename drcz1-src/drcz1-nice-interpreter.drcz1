@@ -148,18 +148,8 @@
 (! EXPR:any-form? (^ (e) (all (not (EXPR:atom? e))
                               (= 'any (. e)))))
 
-
-(! EXPR:load-form? (^ (e) (all (not (EXPR:atom? e))
-                               (= 'load (. e))
-                               (= (length e) 2))))
-
-(! EXPR:save-form? (^ (e) (all (not (EXPR:atom? e))
-                               (= 'save (. e))
-                               (= (length e) 3))))
-
-
 (! EXPR:application? (^ (e) (and (not (EXPR:atom? e))
-                                 (not (member? (. e) '(quote list ^ ! if ?))))))
+                                 (not (member? (. e) '(quote list ^ ! let if ? or and not all any include))))))
 
 
 (! EXPR:quoted (^ (e) (second e)))
@@ -293,7 +283,7 @@
                                           {else} '(err)))))
 
        ((= o 'load) {=>} (^ (args) 
-                            (let ((a {<-} (first (disp args))))
+                            (let ((a {<-} (first args)))
                                  {in} (if (EXPR:symbol? a)
                                           (load a)
                                           {else} '(err)))))
@@ -341,12 +331,9 @@
 
                          ((EXPR:lambda? exp) {=>} (list exp env err))
 
-                         ((REPL:include-form? exp) {=>} (eval-include (REPL:include-file exp) env))
-
                          ((EXPR:definition? exp) {=>} (eval-definition (EXPR:definiens exp)
                                                                        (eval (EXPR:definiendum exp) env err)
                                                                        env))
-
                          ((EXPR:let-form? exp) {=>} (eval-let-form (EXPR:let-bindings exp)
                                                                    (EXPR:let-body exp)
                                                                    env))
@@ -355,7 +342,6 @@
                                                                  (EXPR:conclusion exp)
                                                                  (EXPR:alternative exp)
                                                                  env))
-
                          ((EXPR:not-form? exp) {=>} (eval-not-form (EXPR:arg1 exp) env))
                          ((EXPR:or-form? exp) {=>} (eval-or-form (EXPR:arg1 exp) (EXPR:arg2 exp) env))
                          ((EXPR:and-form? exp) {=>} (eval-and-form (EXPR:arg1 exp) (EXPR:arg2 exp) env))
@@ -363,10 +349,7 @@
                          ((EXPR:all-form? exp) {=>} (eval-all-form (EXPR:args exp) env))
                          ((EXPR:cond-form? exp) {=>} (eval-cond-form (EXPR:cond-list exp) env))
 
-                         ((EXPR:load-form? exp) {=>} (eval-load-form (EXPR:file exp) env))
-                         ((EXPR:save-form? exp) {=>} (eval-save-form (EXPR:file exp)
-                                                                     (eval (EXPR:expr exp) env ())
-                                                                     env))
+                         ((REPL:include-form? exp) {=>} (eval-include (REPL:include-file exp) env))
 
                          ((EXPR:application? exp) {=>} (apply (EXPR:rator exp) (EXPR:rands exp) env))
                          (T {=>} (list exp env (syntax-error)))))))
@@ -560,17 +543,6 @@
 
 {- ...handling i/o -}
 
-(! eval-load-form (^ (file env) (list (load file) env ())))
-
-(! eval-save-form (^ (file res env)
-                     (let ((val {<-} (first res))
-                           (err {<-} (third res))
-                           (file {<~} file)
-                           ( env {<~} env))
-                          {in} (if err
-                                   (list val env err)
-                                   {else} (list (save file val) env ())))))
-
 (! eval-include (^ (file env)
                    (let ((src {<-} (load file))
                          (env {<~} env))
@@ -673,4 +645,4 @@
 
 
 {-main-}
-(repl (read) (init-env) (disp '(drcz1 ready.)))
+(repl (read) (init-env) (disp '(drcz1 --- ready.)))
