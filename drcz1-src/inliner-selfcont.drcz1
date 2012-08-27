@@ -1,6 +1,20 @@
 {** The Great Inliners **}
 
-(include drcz1-syntax.drcz1)
+(include std.drcz1)
+
+{- drcz1 syntax: -}
+
+(! definition? (^ (code) (if (@ code) () {else} (= (first code) '!))))
+(! definition-name (^ (def) (second def)))
+(! definition-value (^ (def) (third def)))
+
+(! lambda? (^ (code) (if (@ code) () {else} (= (first code) '^))))
+(! lambda-arglist (^ (lambda) (second lambda)))
+(! lambda-body (^ (lambda) (third lambda)))
+
+(! proc-def? (^ (code)
+                (and (definition? code)
+                     (lambda? (definition-value code)))))
 
 { Whatever criteria we pick for unfoldability, we always perform the same steps:
   1. find first unfoldable procedure definition,
@@ -12,13 +26,13 @@
      (let ((  term-proc {<-} (find-first-proc-def unfoldable? (disp code) inlined))
            (unfoldable? {<~} unfoldable?)
            (    inlined {<~} inlined)
-           (       code {<~} code))
+           (       code {<~} code))	  
           {in} (if term-proc
-                   (inline-procs (inline-calls (EXPR:definiens term-proc)
-                                               (EXPR:definiendum term-proc)
+                   (inline-procs (inline-calls (definition-name term-proc)
+                                               (definition-value term-proc)
                                                code)
                                  unfoldable?
-                                 (push (EXPR:definiens term-proc) inlined))
+                                 (push (definition-name term-proc) inlined))
                    {else} code))))
 
 (! find-first-proc-def
@@ -30,7 +44,7 @@
                       (criteria? {<~} criteria?)
                       (  inlined {<~} inlined))
                      {in} (if (and (criteria? cur-code)
-                                   (not (member? (EXPR:definiens cur-code) inlined)))
+                                   (not (member? (definition-name cur-code) inlined)))
                               cur-code
                               {else} (find-first-proc-def criteria? rest-code inlined))))))
 
@@ -55,12 +69,14 @@
     Terminal Expression. }
 
 (! terminal? (^ (expr)
-                (? ((EXPR:atom? expr) {=>} T)
-                   ((EXPR:quoted? expr) {=>} T)
-                   ((EXPR:lambda? expr) {=>} (terminal? (EXPR:body expr)))
-                   (T {=>} (and (member? (EXPR:rator expr)
-                                         '(. , ; # @ = < > + - * / % if halt))
-                                (list-of-terminals? (EXPR:rands expr)))))))
+                (if (@ expr)
+                    T
+                    {else} (let ((rator {<-} (first expr))
+                                 (rands {<-} (rest expr)))
+                                {in} (any (= rator 'quote)
+				     	  (and (= rator '^) (terminal? (second rands)))
+                                          (and (member? rator '(. , ; # @ = < > + - * / % if disp read save load halt))
+                                               (list-of-terminals? rands)))))))
 
 (! list-of-terminals? (^ (l)
                          (? ((empty? l) {=>} T)
@@ -70,25 +86,21 @@
 { And now we call a procedure Terminal if its body belongs to TE: }
 
 (! terminal-proc-def? (^ (code)
-                         (and (EXPR:definition? code)
-                              (let ((def {<-} (EXPR:definiendum code)))
-                                   {in} (and (EXPR:lambda? def)
-                                             (terminal? (EXPR:body def)))))))
+                         (and (proc-def? code)
+                              (terminal? (definition-value code)))))
 
 {------------------------------------------------------------------------------------------------------}
 
-(! labels-eq? (^ (l1 l2) (= l1 l2)))
-
 (! inline-calls
   (^ (label lambda code)
-     (if (EXPR:atom? code)
+     (if (@ code)
          code
-         {else} (let ((code {<-} (mapg (^ (x args) (inline-calls (first args) (second args) x))
-                                       (list label lambda)
-                                       code))
+         {else} (let (  (code {<-} (mapg (^ (x args) (inline-calls (first args) (second args) x))
+                                         (list label lambda)
+                                         code))
                       ( label {<~} label)
                       (lambda {<~} lambda))
-                     {in} (if (labels-eq? (first code) label)
+                     {in} (if (= (first code) label)
                               (unfold lambda code)
                               {else} code)))))
 
@@ -97,9 +109,9 @@
   arguments from A. }
 
 (! unfold (^ (lambda call)
-             (let ((   args {<-} (EXPR:rands call))
-                   (arglist {<-} (EXPR:arglist lambda))
-                   (   body {<-} (EXPR:body lambda)))
+             (let ((   args {<-} (rest call))
+                   (arglist {<-} (second lambda))
+                   (   body {<-} (third lambda)))
                   {in} (subst-list (pair arglist args) body))))
 
 (! subst-list (^ (bindings expr)
@@ -112,12 +124,13 @@
                      {else} expr)))
 
 (! substitute (^ (var replacement expr)
-                 (? ((or (EXPR:nil? expr) (EXPR:numeral? expr)) {=>} expr)
-                    ((EXPR:atom? expr) {=>} (if (= var expr)
-                                                replacement
-                                                {else} expr))
-                    (T {=>} (push (substitute var replacement (first expr))
-                                  (substitute var replacement (rest expr)))))))
+                 (? ((= expr ()) {=>} ())
+                    (   (# expr) {=>} expr)
+                    (   (@ expr) {=>} (if (= var expr)
+                                          replacement
+                                          {else} expr))
+                    (          T {=>} (push (substitute var replacement (first expr))
+                                            (substitute var replacement (rest expr)))))))
 
 {------------------------------------------------------------------------------------------------------}
 

@@ -1,17 +1,100 @@
 ( {** we use them quite often **}
 
+(include std.drcz1)
+
 {- drcz1 syntax: -}
 
-(! definition? (^ (code) (if (@ code) () {else} (= (first code) '!))))
-(! definition-name (^ (def) (second def)))
-(! definition-value (^ (def) (third def)))
+{ type EXPR: }
 
-(! lambda? (^ (code) (if (@ code) () {else} (= (first code) '^))))
-(! lambda-arglist (^ (lambda) (second lambda)))
-(! lambda-body (^ (lambda) (third lambda)))
+(! EXPR:nil? (^ (e) (= e ())))
 
-(! proc-def? (^ (code)
-                (and (definition? code)
-                     (lambda? (definition-value code)))))
+(! EXPR:t?   (^ (e) (= e 't)))
+
+(! EXPR:atom?    (^ (e) (@ e)))
+
+(! EXPR:numeral? (^ (e) (# e)))
+
+(! EXPR:symbol?  (^ (e) (all (EXPR:atom? e)
+                             (not (EXPR:nil? e))
+                             (not (EXPR:numeral? e)))))
+
+(! EXPR:quoted? (^ (e) (all (not (EXPR:atom? e))
+                            (= 'quote (. e))
+                            (= (length e) 2))))
+
+(! EXPR:qlist?  (^ (e) (and (not (EXPR:atom? e))
+                            (= 'list (. e)))))
+
+(! EXPR:lambda? (^ (e) (all (not (EXPR:atom? e))
+                            (= '^ (. e))
+                            (= (length e) 3))))
+
+(! EXPR:definition? (^ (e) (all (not (EXPR:atom? e))
+                                (= '! (. e))
+                                (= (length e) 3))))
+
+(! EXPR:let-form? (^ (e) (all (not (EXPR:atom? e))
+                              (= 'let (. e))
+                              (= (length e) 3))))
+
+
+(! EXPR:if-form? (^ (e) (all (not (EXPR:atom? e))
+                             (= 'if (. e))
+                             (= (length e) 4))))
+
+(! EXPR:cond-form? (^ (e) (and (not (EXPR:atom? e)) (= '? (. e)))))
+
+(! EXPR:not-form? (^ (e) (all (not (EXPR:atom? e))
+                              (= 'not (. e))
+                              (= (length e) 2))))
+
+(! EXPR:or-form? (^ (e) (all (not (EXPR:atom? e))
+                             (= 'or (. e))
+                             (= (length e) 3))))
+
+(! EXPR:and-form? (^ (e) (all (not (EXPR:atom? e))
+                              (= 'and (. e))
+                              (= (length e) 3))))
+
+(! EXPR:all-form? (^ (e) (all (not (EXPR:atom? e))
+                              (= 'all (. e)))))
+
+(! EXPR:any-form? (^ (e) (all (not (EXPR:atom? e))
+                              (= 'any (. e)))))
+
+(! EXPR:application? (^ (e) (and (not (EXPR:atom? e))
+                                 (not (member? (. e) '(quote list ^ ! let if ? or and not all any include))))))
+
+
+(! EXPR:quoted (^ (e) (second e)))
+
+(! EXPR:arglist (^ (e) (second e)))
+(! EXPR:body    (^ (e) (third e)))
+
+(! EXPR:definiens   (^ (e) (second e)))
+(! EXPR:definiendum (^ (e) (third e)))
+
+(! EXPR:permise     (^ (e) (second e)))
+(! EXPR:conclusion  (^ (e) (third e)))
+(! EXPR:alternative (^ (e) (fourth e)))
+
+(! EXPR:cond-list (^ (e) (rest e)))
+
+(! EXPR:rator (^ (e) (first e)))
+(! EXPR:rands (^ (e) (rest e)))
+
+(! EXPR:file (^ (e) (second e)))
+(! EXPR:expr (^ (e) (third e)))
+
+(! EXPR:let-bindings (^ (e) (second e)))
+(! EXPR:let-body (^ (e) (third e)))
+
+(! EXPR:arg1 (^ (e) (second e)))
+(! EXPR:arg2 (^ (e) (third e)))
+(! EXPR:args (^ (e) (rest e)))
+
+(! EXPR::primops '(. , ; # @ = > < + - * / % disp read load save halt))
+
+(! EXPR:primop? (^ (e) (and (EXPR:atom? e) (member? e EXPR::primops))))
 
 {==============================================================================})

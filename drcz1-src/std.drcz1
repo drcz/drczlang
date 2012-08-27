@@ -83,7 +83,7 @@
                     
 (! AL:assoc (^ (key al eq?)
                (if (empty? al)
-                   'ERR
+                   (){'ERR}
                    {else} (if (eq? key (. (first al)))
                               (, (first al))
                               {else} (AL:assoc key (rest al) eq?)))))

@@ -12,8 +12,9 @@
 {- The Includer -}
 (! includer (^ (code)
                (? ((@ code) {=>} code)
-                  ((include-form? (first code)) {=>} (append (load (include-filename (first code)))
-                                                                   (includer (rest code))))
+                  ((include-form? (first code))
+                   {=>} (append (includer (load (include-filename (first code))))
+                                (includer (rest code))))
                   (T {=>} (push (first code) (includer (rest code)))))))
 
 {- main -}
