@@ -60,13 +60,14 @@
                     T
                     {else} (let ((rator {<-} (first expr))
                                  (rands {<-} (rest expr)))
-                                {in} (or (and (= rator '^) (terminal? (second rands))) {!!}
-                                         (and (member? rator '(. , ; # @ = < > + - * / % if))
-                                              (list-of-terminals? rands))))))))
+                                {in} (any (= rator 'quote)
+				     	  (and (= rator '^) (terminal? (second rands)))
+                                          (and (member? rator '(. , ; # @ = < > + - * / % if disp read save load halt))
+                                               (list-of-terminals? rands)))))))
 
 (! list-of-terminals? (^ (l)
                          (? ((empty? l) {=>} T)
-                            ((terminal? (first l)) {=>} (list-of-terminals (rest l)))
+                            ((terminal? (first l)) {=>} (list-of-terminals? (rest l)))
                             (T {=>} ()))))
 
 { And now we call a procedure Terminal if its body belongs to TE: }

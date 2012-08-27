@@ -46,7 +46,6 @@
                                ((= hd 'disp) {=>} (disp (eval (. tl) env)))
                                ((= hd 'load) {=>} (load (. tl)))
                                ((= hd 'save) {=>} (save (. tl) (eval (. (, tl)) env)))
-                               ((= hd 'halt) {=>} (halt))
                                { other applications: }
                                (T (apply (eval hd env) (evlis tl env) env))))))))
 

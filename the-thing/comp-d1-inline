@@ -1,4 +1,5 @@
 #!/bin/bash
-${0%/*}/desugar |${0%/*}/inliner1 | ${0%/*}/comp-d0
+${0%/*}/desugar | ${0%/*}/inliner1 | ${0%/*}/comp-d0
+
 
 
