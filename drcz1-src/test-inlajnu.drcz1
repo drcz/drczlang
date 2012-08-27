@@ -1,0 +1,31 @@
+(! car (^ (a) (. a)))
+(! first (^ (a) (car a)))
+(! head (^ (a) (first a)))
+
+(! cdr (^ (a) (, a)))
+(! rest (^ (a) (cdr a)))
+(! tail (^ (a) (rest a)))
+
+(! cons (^ (a b) (; a b)))
+(! push (^ (a b) (cons a b)))
+(! pend-push (^ (a b) (push a b)))
+
+(! rev2 (^ (p r) (if p (rev2 (tail p) (pend-push (head p) r)) {else} r)))
+(! nums (^ (n) (rev2 (rnums n) ())))
+(! rnums (^ (n) (if (= n 0) () (push n (rnums (- n 1))))))
+
+(nums 997)
+
+
+{ wiwat!
+
+drcz@krygryt:~/prj/drczlang/curr/drczlang/drcz1-src$ time ../the-thing/DRCZ -s test-inlajnu-BEZ.bc > /dev/null
+
+real	0m2.101s
+user	0m2.056s
+sys	0m0.036s
+drcz@krygryt:~/prj/drczlang/curr/drczlang/drcz1-src$ time ../the-thing/DRCZ -s test-inlajnu-Z.bc > /dev/null
+
+real	0m0.508s
+user	0m0.448s
+sys	0m0.056s }

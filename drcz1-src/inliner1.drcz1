@@ -9,7 +9,7 @@
 
 (! inline-procs
   (^ (code unfoldable? inlined)
-     (let ((  term-proc {<-} (find-first-proc-def unfoldable? (disp code) inlined))
+     (let ((  term-proc {<-} (find-first-proc-def unfoldable? code inlined))
            (unfoldable? {<~} unfoldable?)
            (    inlined {<~} inlined)
            (       code {<~} code))
