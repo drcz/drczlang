@@ -149,6 +149,8 @@
 
                          ((EXPR:quoted? exp) {=>} (list (EXPR:quoted exp) env err))
 
+                         ((EXPR:qlist? exp) {=>} (evlis (EXPR:rands exp) env))
+
                          ((EXPR:lambda? exp) {=>} (list exp env err))
 
                          ((EXPR:definition? exp) {=>} (eval-definition (EXPR:definiens exp)
