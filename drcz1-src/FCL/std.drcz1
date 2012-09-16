@@ -1,0 +1,129 @@
+( {- quite usefull datastructures -}
+
+
+{ the following one sets equality relation on SExps, induced by eq? (=) relation on atoms. }
+(! eq-rec? (^ (e1 e2)
+   	      (? ((@ e1) {=>} (= e1 e2))
+                 ((@ e2) {=>} ())
+                 (T {=>} (and (eq-rec? (. e1) (. e2))
+                              (eq-rec? (, e1) (, e2)))))))
+{<tmp> perhaps it should get classified as operator on lists? }
+
+{= LISTs: ====================================================================}
+
+{ We use these ones so often, we found no reason to prepend their names with
+  any singature - after all McCarthy called his language LISP for a reason... }
+
+(! empty? (^ (l) (= l ())))
+(! first  (^ (l) (. l)))
+(! second (^ (l) (. (, l))))
+(! third  (^ (l) (. (, (, l)))))
+(! fourth (^ (l) (. (, (, (, l))))))
+(! rest   (^ (l) (, l)))
+(! push   (^ (el l) (; el l)))
+
+(! length (^ (l)
+             (if l (+ 1 (length (rest l))) {else} 0)))
+
+(! append (^ (a b)
+             (if (empty? a)
+                 b
+                 {else} (push (first a) (append (rest a) b)))))
+
+(! pair (^ (a b) (if a (push (; (first a) (first b)) (pair (rest a) (rest b))) {else} ())))
+
+{ to niestety przy kompilacji nie zahabla, let to 'tylko lambda' i zapomina co znaczyło 'rev'
+  wewnątrz 'rev'... 
+(! reverse (^ (l)
+              (let ((rev (^ (pend res)
+                            (if (empty? pend)
+                                res
+                                (rev (rest pend) (push (first pend) res))))))
+                   (rev l ()))))
+}
+(! reverse (^ (l) (rev l ())))
+(! rev (^ (p r) (if p (rev (, p) (; (. p) r)) r)))
+
+(! nth (^ (n l)
+          (if (= n 1)
+              (first l)
+              {else} (nth (- n 1) (rest l)))))
+
+(! map (^ (proc l)
+          (if (empty? l)
+              ()
+              {else} (push (proc (first l)) (map proc (rest l))))))
+
+{ since drcz1 does not allow to use free variables, we sometimes need an awkward version of map that
+  passes additional arguments to proc: }
+
+{mapg: [Exp x SExp -> SExp] x SExp x List<SExp> -> List<SExp> }
+(! mapg (^ (proc args l) (if l (push (proc (first l) args) (mapg proc args (rest l))) {else} ())))
+
+(! member? (^ (el l)
+              (? ((empty? l) {=>} ())
+                 ((= el (first l)) {=>} T)
+                 (T {=>} (member? el (rest l))))))
+
+(! uniq (^ (l)
+           (? ((empty? l) {=>} ())
+              ((member? (first l) (rest l)) {=>} (uniq (rest l)))
+              (T {=>} (push (first l) (uniq (rest l)))))))
+
+{ sometimes it happens that we want to use member? with more complex "identity [equality] relations" }
+(! memberg? (^ (el l eq?)
+               (? ((empty? l) {=>} ())
+                  ((eq? el (first l)) {=>} T)
+                  (T {=>} (memberg? el (rest l) eq?)))))
+
+(! reduce (^ (op neutr l)
+             (if l
+                 (op (. l) (reduce op neutr (, l)))
+                 {else} neutr)))
+
+
+(! last (^ (l)
+           (if (rest l) {!}
+               (last (rest l))
+               {else} (first l))))
+
+(! drop-last-element (^ (l)
+                     (if (rest l) {!}
+                         (push (first l)
+                               (drop-last-element (rest l)))
+                         {else} ())))
+
+{= A-LISTs: ==================================================================}
+
+(! AL:new (^ (keys vals) (pair keys vals)))
+
+(! AL:keys (^ (al)
+              (if (empty? al)
+                  ()
+                  {else} (push (. (first al))
+                               (AL:keys (rest al))))))
+
+(! AL:add (^ (key val al)
+             (push (; key val) al)))
+
+{ notice these two take additional argument 'eq?' - a procedure of type ValxVal->Boolean
+  settling equivalence of two values. }
+
+(! AL:update (^ (key val al eq?)
+                (? ((empty? al) {=>} (AL:add key val al))
+                   ((eq? (. (first al)) key) {=>} (AL:add key val (rest al)))
+                   (T {=>} (push (first al) (AL:update key val (rest al) eq?))))))
+
+(! AL:drop (^ (key al eq?)
+              (? ((empty? al) {=>} ())
+                 ((eq? (. (first al)) key) {=>} (rest al))
+                 (T {=>} (push (first al) (AL:drop key (rest al) eq?))))))
+                    
+(! AL:assoc (^ (key al eq?)
+               (if (empty? al)
+                   (){'ERR}
+                   {else} (if (eq? key (. (first al)))
+                              (, (first al))
+                              {else} (AL:assoc key (rest al) eq?)))))
+
+{=============================================================================} )

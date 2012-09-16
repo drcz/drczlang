@@ -1,0 +1,13 @@
+((n m)
+ start
+
+ ( start   (let wynik 1)
+           (goto test))
+
+ (  test   (if (= m 0) koniec {else} petla))
+
+ ( petla   (let wynik (* wynik n))
+           (let m (- m 1))
+           (goto test))
+   
+ (koniec   (return wynik)))

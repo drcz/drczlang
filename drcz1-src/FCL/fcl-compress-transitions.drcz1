@@ -1,0 +1,110 @@
+{- unfolding nonconditional jumps -}
+(include fcl-datatypes.drcz1)
+
+{ To tera tak:
+  - zbieramy ,,graf wszystkich skoków'';
+  - odfiltrowujemy z niego tylko te węzły, w których zbiór etykiet [wartość] jest dokładnie
+    jednoelementowy l.1->(l.2) i to takich, w których to blok etykietowany l.2 kończy się
+    skokiem (goto l.1). Odfiltrowany graf [A-listę] nazywamy P;
+  - dla każdej takiej pary (l.1 l.2) robimy co następuje:
+    - niech b.1 = block-map[l.1], b.2 = block-map[l.2];
+    - od b.2 odrywamy ostatnią komendę (tj skok, tu (goto l.1)), w miejsce której przyklejamy
+      cały b.1;
+    - każdy węzeł postaci (l l.1) w P zamieniamy na (l l.2).
+  Dodatkowo z programu (blok-mapy) możemy usunąć te bloki, dla których zbiór etykiet w ,,grafie''
+  był pusty (tj ,,bloki nieosiągalne''). }
+
+(! compress-trans { : PROGRAM -> PROGRAM }
+ (^ (prog)
+    (PROGRAM:new (PROGRAM:input-names prog)
+                 (PROGRAM:start-pp prog)
+                 (unfold-all (disp (AL:drop (PROGRAM:start-pp prog)
+                                            (filter-only-unfoldable (get-jumps-digraph prog))
+                                            PP:eq?))
+                             (PROGRAM:block-map prog)))))
+
+{- gathering code-block's successors -}
+
+(! CODE-BLOCK:successors { : CODE-BLOCK -> L<LABEL-S> } { actually LABEL-S or PP or whatever }
+ (^ (cb)
+    (let ((jump {<-} (last cb)))
+         {in} (? ((CMD:if? jump) {=>} (list (CMD:if-then-pp jump) (CMD:if-else-pp jump)))
+                 ((CMD:goto? jump) {=>} (list (CMD:goto-pp jump)))
+                 (T {=>} ())))))
+
+
+{ constructs digraph where vertices stand for labels, and edges for jumps.
+  we keep it in the form of A-list from labels to lists of labes, where we interpret
+  entry "L -> (L1 ... Ln)" as "PPs with labels L1, ... , Ln include jump to PP with label L". }
+
+(! get-jumps-digraph (^ (prog) (jumps-collector (PROGRAM:block-map prog) ()))) { : PROGRAM -> AL<LABEL> }
+
+{<tmp> może dla AL jakieś key i val dla iteratorów? na razie wieśniaczymy z . i , }
+(! jumps-collector {: BLOCK-MAP -> AL<LABEL->L<LABEL> }
+ (^ (pend res)
+    (if pend
+        (let ((label {<-} (. (first pend)))
+              (block {<-} (, (first pend)))
+              ( pend {<-} (rest pend))
+              (res {<~} res))
+             {in} (jumps-collector pend
+                                   (add-in-all label
+                                               (CODE-BLOCK:successors block)
+                                               res)))
+        {else} res)))
+
+(! add-in-all
+ (^ (what where graph)
+    (if where
+        (AL:update (first where)
+                   (push what (AL:assoc (first where) graph PP:eq?))
+                   (add-in-all what (rest where) graph)
+                   PP:eq?)
+        {else} graph)))
+
+{ roboczo? bo to może być w sumie ogólna operacja na AL... }
+(! filter-graph (^ (graph pred?)
+                   (if graph
+                       (if (pred? (first graph))
+                           (; (first graph) (filter-graph (rest graph) pred?))
+                           {else} (filter-graph (rest graph) pred?))
+                       {else} ())))
+
+(! filter-only-unfoldable (^ (graph) (filter-graph graph unfoldable?)))
+(! filter-only-reachable (^ (graph) (filter-graph graph reachable?)))
+
+(! reachable? (^ (pair) (not (empty? (, pair))))) { osiągalne pp-kty mają niepustą ,,listę źródeł'' }
+(! unfoldable? (^ (pair) (= (length (, pair)) 1)))
+
+(! unfold-all (^ (graph res) { : AL<PP->List<PP>> x BLOCK-MAP -> BLOCK-MAP }
+                 (if graph
+                     (let ((   l1 {<-} (first (first graph)))
+                           (   l2 {<-} (second (first graph)))
+                           (graph {<-} (rest graph))
+                           (res {<~} res))
+                          {in} (if (CMD:goto? (last (BLOCK-MAP:find l2 res)))
+                                   (unfold-all (replace-in-graph l1 l2 graph)
+                                               (unfold-block l1
+                                                             l2
+                                                             (BLOCK-MAP:find l1 res)
+                                                             (BLOCK-MAP:find l2 res)
+                                                             res))
+                                   {else} (unfold-all graph res)))
+                     {else} res)))
+
+(! replace-in-graph
+ (^ (l1 l2 graph)
+    (? ((empty? graph) {=>} ())
+       ((= (second (first graph)) l1) {=>} (push (list (first (first graph)) l2)
+                                                 (replace-in-graph l1 l2 (rest graph))))
+       (T {=>} (push (first graph)
+                     (replace-in-graph l1 l2 (rest graph)))))))
+
+(! unfold-block { PP x PP x CODE-BLOCK x CODE-BLOCK x BLOCK-MAP -> BLOCK-MAP }
+ (^ (l1 l2 b1 b2 bm)
+    (BLOCK-MAP:update l2
+                      (append (drop-last-element b2) b1)
+                      (BLOCK-MAP:drop l1 bm))))
+
+{-main-}
+(compress-trans (read))

@@ -1,0 +1,58 @@
+
+({** FCL datatypes: ********************************************************************************************}
+
+(include std.drcz1)
+
+{ type EXPR: }
+ { Yes, we do use whole SE domain as EXPRs and this should NEVER change, therefore no procedures for this type. }
+
+{ type PP: (Program Point) }
+(! PP:eq? (^ (p1 p2) (= p1 p2)))
+
+{ type CMD: }
+(! CMD:let?    (^ (cmd) (= (first cmd) 'let)))    { : CMD -> Boolean }
+(! CMD:goto?   (^ (cmd) (= (first cmd) 'goto)))   { : CMD -> Boolean }
+(! CMD:if?     (^ (cmd) (= (first cmd) 'if)))     { : CMD -> Boolean }
+(! CMD:return? (^ (cmd) (= (first cmd) 'return))) { : CMD -> Boolean }
+
+(! CMD:let-variable      (^ (cmd) (second cmd)))  { : CMD -> VARIABLE }  {(LHS)}
+(! CMD:let-expression    (^ (cmd) (third cmd))) { : CMD -> EXPR }        {(RHS)}
+(! CMD:goto-pp           (^ (cmd) (second cmd)))
+(! CMD:if-condition      (^ (cmd) (second cmd)))
+(! CMD:if-then-pp        (^ (cmd) (third cmd)))
+(! CMD:if-else-pp        (^ (cmd) (fourth cmd)))
+(! CMD:return-expression (^ (cmd) (second cmd)))
+
+(! CMD:mk-let    (^ (lhs rhs) (list 'let lhs rhs)))
+(! CMD:mk-goto   (^ (pp) (list 'goto pp)))
+(! CMD:mk-if     (^ (perm concl alt) (list 'if perm concl alt)))
+(! CMD:mk-return (^ (expr) (list 'return expr)))
+
+{ type CODE-BLOCK: }
+(! CODE-BLOCK:first-cmd (^ (cb) (first cb))) { : CODE-BLOCK -> CMD }
+(! CODE-BLOCK:rest-cmds (^ (cb) (rest cb))) { : CODE-BLOCK -> List<CMD> }
+
+{ type BLOCK-MAP: }
+(! BLOCK-MAP:find   (^ (pp bm) (AL:assoc pp bm PP:eq?))) { : PP x BLOCK-MAP -> CODE-BLOCK }
+(! BLOCK-MAP:add    (^ (pp code-block bm) (AL:add pp code-block bm))) { : PP x CODE-BLOCK x BLOCK-MAP -> BLOCK-MAP }
+(! BLOCK-MAP:update (^ (pp code-block bm) (AL:update pp code-block bm PP:eq?))) { -||- }
+(! BLOCK-MAP:drop   (^ (pp bm) (AL:drop pp bm PP:eq?))) { : PP x BLOCK-MAP -> BLOCK-MAP }
+(! BLOCK-MAP:labels (^ (bm) (AL:keys bm))) { : BLOCK-MAP -> List<PP> }
+
+{type PROGRAM:}
+(! PROGRAM:new (^ (input start bm) (append (list input start) bm))) { : List<VARIABLE> x PP x BLOCK-MAP -> PROGRAM }
+(! PROGRAM:input-names (^ (prg) (first prg)))  { : PROGRAM -> List<VARIABLE> }
+(! PROGRAM:start-pp    (^ (prg) (second prg))) { : PROGRAM -> PP }
+(! PROGRAM:block-map   (^ (prg) (rest (rest prg))))  { : PROGRAM -> BLOCK-MAP }
+
+{type VARIABLE:}
+(! VARIABLE:eq? (^ (x y) (= x y))) { : VARIABLE x VARIABLE -> Boolean }
+
+{type STORE:}
+(! STORE:new    (^ (init-names init-vals) (AL:new init-names init-vals))) { : List<VARIABLE> x List<SE> -> STORE }
+(! STORE:update (^ (var val store) (AL:update var val store VARIABLE:eq?)))  { : VARIABLE x SE x STORE -> STORE }
+(! STORE:lookup (^ (var store) (AL:assoc var store VARIABLE:eq?))) { : VARIABLE x STORE -> SE }
+
+(! STORE:varlist (^ (store) (AL:keys store))) { : STORE -> List<VARIABLE> }
+
+{---------------------------------------------------------------------------------------------------------------})

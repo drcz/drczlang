@@ -1,0 +1,73 @@
+{-- Simple Flowchart Language Interpreter --}
+
+(include fcl-datatypes.drcz1)
+
+(! run { PROGRAM x List<SE> -> SE }
+ (^ (program inputvals)
+    (run-block (PROGRAM:start-pp program)
+               (STORE:new (PROGRAM:input-names program) inputvals)
+               (PROGRAM:block-map program))))
+
+
+(! run-block { Pp x STORE x BLOCK-MAP -> SE }
+ (^ (pp store block-map)
+    (step (BLOCK-MAP:find pp block-map) store block-map)))
+                
+
+(! step { CODE-BLOCK x STORE x BLOCK-MAP -> SE }
+ (^ (code-block store block-map)
+    (let ((      cmd {<-} (CODE-BLOCK:first-cmd code-block))
+          (  cb-rest {<-} (CODE-BLOCK:rest-cmds code-block))
+          (    store {<~} store)
+          (block-map {<~} block-map))
+         {in} (? (   (CMD:let? cmd) {=>} (step cb-rest
+                                               (STORE:update (CMD:let-variable cmd)
+                                                             (eval-expr (CMD:let-expression cmd) store)
+                                                             store)
+                                               block-map))
+
+                 (  (CMD:goto? cmd) {=>} (run-block (CMD:goto-pp cmd) store block-map))
+
+                 (    (CMD:if? cmd) {=>} (if (eval-expr (CMD:if-condition cmd) store)
+                                             (run-block (CMD:if-then-pp cmd) store block-map)
+                                             {else} (run-block (CMD:if-else-pp cmd) store block-map)))
+
+                 ((CMD:return? cmd) {=>} (eval-expr (CMD:return-expression cmd) store))
+
+                 (                T {=>} (list 'ERR 'step: 'unknown 'command cmd))))))
+
+
+(! eval-expr { EXPR x STORE -> SE }
+ (^ (expr store)
+    (? ((= expr ()) {=>} ())
+       (   (# expr) {=>} expr)
+       (   (@ expr) {=>} (STORE:lookup expr store))
+       (          T {=>} (apply-op (first expr)
+                                   (evlis-expr (rest expr) store))))))
+
+(! apply-op (^ (op argvals)
+               (? ((= op '+) {=>} (+ (first argvals) (second argvals)))
+                  ((= op '-) {=>} (- (first argvals) (second argvals)))
+                  ((= op '*) {=>} (* (first argvals) (second argvals)))
+                  ((= op '/) {=>} (/ (first argvals) (second argvals)))
+                  ((= op '%) {=>} (% (first argvals) (second argvals)))
+                  ((= op '>) {=>} (> (first argvals) (second argvals)))
+                  ((= op '<) {=>} (< (first argvals) (second argvals)))
+                  ((= op '=) {=>} (= (first argvals) (second argvals)))
+                  ((= op '#) {=>} (# (first argvals)))
+                  ((= op '@) {=>} (@ (first argvals)))
+                  ((= op '.) {=>} (. (first argvals)))
+                  ((= op ',) {=>} (, (first argvals)))
+                  ((= op ';) {=>} (; (first argvals) (second argvals)))
+                  (        T {=>} (list 'ERR 'apply-primop: 'unknow 'operator op '!)))))
+               
+(! evlis-expr (^ (expr-list store)
+                 (if (empty? expr-list)
+                     ()
+                     {else} (; (eval-expr (first expr-list) store)
+                               (evlis-expr (rest expr-list) store)))))
+
+{---------------------------------------------------------------------------------------------------------------}
+
+{-main-}
+((^ (in _ pr __) (run pr in)) (read) (disp 'INPUT:) (read) (disp 'PROGRAM:) )

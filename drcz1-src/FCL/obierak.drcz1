@@ -1,0 +1,78 @@
+(include fcl-datatypes.drcz1)
+
+(! pos-g
+ (^ (elem l eq? n)
+    (? ((empty? l) {=>} ())
+       ((eq? elem (. l)) {=>} n)
+       (T {=>} (pos-g elem (, l) eq? (+ n 1))))))
+
+{---------------------------------------------------------------------------------------------------}
+
+(! BLOCK-MAP:labels (^ (bm) (AL:keys bm)))
+
+(! LABEL-S:ppname (^ (l) (first l)))
+(! LABEL-S:store  (^ (l) (second l)))
+(! LABEL-S:new    (^ (pp store) (list pp store)))
+
+(! LABEL-s:eq?
+ (^ (l1 l2)
+    (and (PP:eq? (LABEL-S:ppname l1) (LABEL-S:ppname l2))
+         (STORE:eq? (LABEL-S:store l1) (LABEL-S:store l2)))))
+
+{ and equality relation on stores: }
+(! STORE:eq? (^ (s1 s2) (and (STORE:include? s1 s2) (STORE:include? s2 s1))))
+
+          (! s-i-check {<-} (^ (vars-to-check s1 s2 vars2)
+                              (? ((empty? vars-to-check) {=>} T)
+                                 ((and (memberg? (first vars-to-check) vars2 (^ (a b) (= a b)))
+                                       (eq-rec? (STORE:lookup (first vars-to-check) s1)
+                                                (STORE:lookup (first vars-to-check) s2)))
+                                  {=>} (s-i-check (rest vars-to-check) s1 s2 vars2))
+                                 (T {=>} ()))))
+
+(! STORE:include?
+ (^ (s1 s2)
+    (let ((s1-varlist {<-} (STORE:varlist s1))
+          (s2-varlist {<-} (STORE:varlist s2))
+          (s1 {<~} s1)
+          (s2 {<~} s2))
+         {in} (s-i-check s2-varlist s1 s2 s1-varlist)))) { notice the order of varlists. }
+
+{---------------------------------------------------------------------------------------------------}
+
+(! get-labels (^ (prog) (BLOCK-MAP:labels (PROGRAM:block-map prog))))
+
+(! label-2-number (^ (label ll) (pos-g label ll LABEL-S:eq? 0)))
+
+{ wpierw podmianka etykiet w goto i ifach:}
+(! l2n-block
+ (^ (block ll)
+    (if (, block)
+        (; (. block) (l2n-block (, block) ll))
+        {else} (? ((CMD:if? (. block))
+                   {=>} (list (CMD:mk-if (CMD:if-condition (. block))
+                                         (label-2-number (CMD:if-then-pp (. block)) ll)
+                                         (label-2-number (CMD:if-else-pp (. block)) ll))))
+                  ((CMD:goto? (. block))
+                   {=>} (list (CMD:mk-goto (label-2-number (CMD:goto-pp (. block)) ll))))
+                  (T {=>} block)))))
+
+(! conv-all-blocks
+ (^ (bm ll)
+    (if (empty? bm)
+        ()
+        {else} (; (; (label-2-number (first (. bm)) ll)
+                        (l2n-block (rest (. bm)) ll))
+                  (conv-all-blocks (, bm) ll)))))
+
+{- sedno -}
+(! labels-2-numbers
+ (^ (prog)
+    (let ((ll {<-} (get-labels prog))
+          (prog {<~} prog))
+         {in} (append (list (first prog)
+                            (label-2-number (second prog) ll))
+                      (conv-all-blocks (PROGRAM:block-map prog) ll)))))
+
+{-main-}
+(labels-2-numbers (read))

@@ -1,0 +1,251 @@
+{- prosty onlajnowy specjalizator FCLu a'la Hattcliff, punkt wyjścia dla
+   Prawdziwego Męskiego Drywingu [Pragonki]. -}
+
+(include fcl-datatypes.drcz1)
+
+{ + some more datatypes: }
+
+(! ANNEXPR:new        (^ (ann expr) (list ann expr)))
+(! ANNEXPR:annotation (^ (ae) (first ae)))
+(! ANNEXPR:expression (^ (ae) (second ae)))
+
+(! ANNEXPR:static?  (^ (ae) (= (ANNEXPR:annotation ae) 'S)))
+(! ANNEXPR:dynamic? (^ (ae) (= (ANNEXPR:annotation ae) 'D)))
+
+(! ANNEXPR:lift (^ (e) (ANNEXPR:new 'D (ANNEXPR:expression e))))
+
+(! LABEL-S:ppname (^ (l) (first l)))
+(! LABEL-S:store  (^ (l) (second l)))
+(! LABEL-S:new    (^ (pp store) (list pp store)))
+
+(! LABEL-s:eq?
+ (^ (l1 l2)
+    (and (PP:eq? (LABEL-S:ppname l1) (LABEL-S:ppname l2))
+         (STORE:eq? (LABEL-S:store l1) (LABEL-S:store l2)))))
+
+{ and equality relation on stores: }
+(! STORE:eq? (^ (s1 s2) (and (STORE:include? s1 s2) (STORE:include? s2 s1))))
+
+{<tmp> no tą definicję to możnaby pewnie uładnić, bo jako program wykonuje za dużo sprawdzeń,
+ wystarczyłaby np inkluzja w jedną stronę i inkluzja samych kluczy w drugą, ale na raie tak
+ zostawiamy, podkreślając jak bardzo sobie bimbamy na wydajność (i tak po skompilowaniu śmiga). }
+
+
+          (! s-i-check {<-} (^ (vars-to-check s1 s2 vars2)
+                              (? ((empty? vars-to-check) {=>} T)
+                                 ((and (memberg? (first vars-to-check) vars2 (^ (a b) (= a b)))
+                                       (eq-rec? (STORE:lookup (first vars-to-check) s1)
+                                                (STORE:lookup (first vars-to-check) s2)))
+                                  {=>} (s-i-check (rest vars-to-check) s1 s2 vars2))
+                                 (T {=>} ()))))
+
+
+(! STORE:include?
+ (^ (s1 s2)
+    (let ((s1-varlist {<-} (STORE:varlist s1))
+          (s2-varlist {<-} (STORE:varlist s2))
+          (s1 {<~} s1)
+          (s2 {<~} s2))
+         {in} (s-i-check s2-varlist s1 s2 s1-varlist)))) { notice the order of varlists. }
+
+{---------------------------------------------------------------------------------------------------}
+{roboczo, bo to podchodzi pod instację filter'a czy coś, zobaczymy czego używać będziemy najczęściej}
+(! crop-dyn-inp (^ (i)
+                   (if i
+                       (if (ANNEXPR:dynamic? (. i))
+                           (; (ANNEXPR:expression (. i)) (crop-dyn-inp (, i)))
+                           {else} (crop-dyn-inp (, i))) 
+                       {else} ())))
+
+
+(! specialize
+ (^ (prog input-vals)
+    (let ((init-label {<-} (LABEL-S:new (PROGRAM:start-pp prog)
+                                        (STORE:new (PROGRAM:input-names prog) input-vals)))
+          ( init-res {<-} ())
+          (init-seen {<-} ())
+          (block-map {<-} (PROGRAM:block-map prog))
+          (dyn-input {<-} (crop-dyn-inp input-vals)))
+         {in} (append (list dyn-input init-label)
+                      (reverse (drive (list init-label) init-res init-seen block-map))))))
+
+
+(! drive { L<LABEL-S> x CODE-BLOCK x L<LABEL-S> x BLOCK-MAP -> BLOCK-MAP}
+ (^ (pend res seen block-map)
+    (? ((empty? (disp pend)) {=>} res)
+       ((seen-before? (first pend) seen) {=>} (drive (rest pend) res seen block-map))
+       (T {=>} (let ((res-block {<-} (drive-block (BLOCK-MAP:find (LABEL-S:ppname (first pend))
+                                                                  block-map)
+                                                  ()
+                                                  (LABEL-S:store (first pend))))
+                     (r-b-label {<-} (first pend))
+                     (     pend {<-} (rest pend))
+                     (      res {<~} res)
+                     (     seen {<~} seen)
+                     (block-map {<~} block-map))
+                    {in} (drive (append (successors res-block) pend)    {"new pend"}
+                                (BLOCK-MAP:add r-b-label res-block res) {"new res"}
+                                (push r-b-label seen)                   {"new seen"}
+				block-map))))))
+
+(! seen-before? (^ (label seen) (memberg? label seen LABEL-S:eq?)))
+
+
+{- driving single code-block: -}
+
+{<tmp> się już nie bawimy w owijki ino jawnie podajemy wynik [res-code], na początku to ()...}
+
+(! drive-block { CODE-BLOCK [x CODE-BLOCK] x STORE -> CODE-BLOCK }
+ (^ (code-block res-code store)
+    (if code-block
+        (let ((      cmd {<-} (CODE-BLOCK:first-cmd code-block))
+              (rest-cmds {<-} (CODE-BLOCK:rest-cmds code-block))
+              (res-code {<~} res-code)
+              (   store {<~} store))
+             {in} (? ((CMD:let? cmd) {=>} (drive-let (CMD:let-variable cmd)
+                                                     (eval-expr (CMD:let-expression cmd) store)
+                                                     rest-cmds
+                                                     res-code
+                                                     store))
+
+                     ((CMD:goto? cmd) {=>} (drive-goto (CMD:goto-pp cmd)
+                                                       rest-cmds
+                                                       res-code
+                                                       store))
+
+                     ((CMD:if? cmd) {=>} (drive-if (CMD:if-condition cmd)
+                                                   (eval-expr (CMD:if-condition cmd) store)
+                                                   (CMD:if-then-pp cmd)
+                                                   (CMD:if-else-pp cmd)
+                                                   rest-cmds
+                                                   res-code
+                                                   store))                                                            
+
+                     ((CMD:return? cmd) {=>} (drive-return (eval-expr (CMD:return-expression cmd) store)
+                                                           rest-cmds
+                                                           res-code
+                                                           store))
+                  ))
+        {else} res-code)))
+    
+(! drive-let
+ (^ (var annval cmds res-code store)
+    (drive-block cmds
+                 (if (ANNEXPR:static? annval)
+                     res-code
+                     {else} (append res-code (list (CMD:mk-let var (ANNEXPR:expression annval)))))
+                 (STORE:update var
+                               (if (ANNEXPR:static? annval)
+                                   annval
+                                   {else} (ANNEXPR:new 'D var))
+                               store))))
+
+(! drive-goto
+ (^ (pp cmds res-code store)
+    (drive-block cmds
+                 (append res-code (list (CMD:mk-goto (LABEL-S:new pp store))))
+                 store)))
+
+(! drive-if
+ (^ (perm evperm concl alt cmds res-code store)
+    (drive-block cmds
+                 (? ((ANNEXPR:dynamic? evperm)
+                     {=>} (append res-code
+                                  (list (CMD:mk-if perm
+                                                   (LABEL-S:new concl store)
+                                                   (LABEL-S:new alt store)))))
+                    {- below we assume perm STATIC -}
+                    ((= (ANNEXPR:expression evperm) ())
+                     {=>} (append res-code
+                                  (list (CMD:mk-goto (LABEL-S:new alt store)))))
+                    (T {=>} (append res-code
+                                    (list (CMD:mk-goto (LABEL-S:new concl store))))) )
+                 store)))
+
+(! drive-return
+ (^ (expr cmds res-code store)
+    (drive-block cmds
+                 (append res-code (list (CMD:mk-return (ANNEXPR:expression expr))))
+                 store)))
+
+
+{-- extended evaluator --}
+
+(! eval-expr { : EXPR x STORE -> ANNEXPR }
+ (^ (expr store)
+    (? ((any (= expr ())
+             (= expr 'T)
+             (# expr)) {=>} (ANNEXPR:new 'S expr))
+       ((@ expr) {=>} (STORE:lookup expr store))
+       (T {=>} (eval-comp-ann-expr (first expr)
+                                   (evlis-ann (rest expr) store))))))
+
+(! evlis-ann { : L<EXPR> -> L<ANNEXPR> }
+ (^ (expr-list store)
+    (if expr-list
+        (push (eval-expr (first expr-list) store)
+              (evlis-ann (rest expr-list) store))
+        {else} ())))
+
+(! eval-comp-ann-expr { : EXPR x L<ANNEXPR> -> ANNEXPR }
+ (^ (rator rands)
+    (if (all-static? rands)
+        (apply-op-static rator rands)
+        {else} (apply-op-dynamic rator rands))))
+
+(! all-static? { : L<ANNEXPR> -> Boolean }
+   (^ (annexpr-list)
+      (if annexpr-list
+          (and (ANNEXPR:static? (first annexpr-list))
+               (all-static? (rest annexpr-list)))
+          {else} T)))
+
+(! strip-annotations { : L<ANNEXPR> -> L<EXPR> }
+ (^ (exprlist)
+    (if exprlist
+        (push (ANNEXPR:expression (first exprlist))
+              (strip-annotations (rest exprlist)))
+        {else} ())))
+
+(! lift-all (^ (exprlist) (map ANNEXPR:lift exprlist))) {potrzebne to?!}
+
+
+(! apply-op-static { : EXPR x L<ANNEXPR>  -> ANNEXPR }
+ (^ (op argvals)
+    (ANNEXPR:new 'S (apply-op op (strip-annotations argvals)))))
+
+(! apply-op (^ (op argvals)
+               (? ((= op '+) {=>} (+ (first argvals) (second argvals)))
+                  ((= op '-) {=>} (- (first argvals) (second argvals)))
+                  ((= op '*) {=>} (* (first argvals) (second argvals)))
+                  ((= op '/) {=>} (/ (first argvals) (second argvals)))
+                  ((= op '%) {=>} (% (first argvals) (second argvals)))
+                  ((= op '>) {=>} (> (first argvals) (second argvals)))
+                  ((= op '<) {=>} (< (first argvals) (second argvals)))
+                  ((= op '=) {=>} (= (first argvals) (second argvals)))
+                  ((= op '#) {=>} (# (first argvals)))
+                  ((= op '@) {=>} (@ (first argvals)))
+                  ((= op '.) {=>} (. (first argvals)))
+                  ((= op ',) {=>} (, (first argvals)))
+                  ((= op ';) {=>} (; (first argvals) (second argvals)))
+                  (        T {=>} (list 'ERR 'apply-primop: 'unknow 'operator op '!)))))
+
+(! apply-op-dynamic
+ (^ (op args)
+    (ANNEXPR:new 'D (push op (strip-annotations args)))))
+
+
+{- gathering code-block's successors -}
+
+(! successors { : CODE-BLOCK -> L<LABEL-S> } { actually LABEL-S or PP or whatever }
+ (^ (cb)
+    (let ((jump {<-} (last cb)))
+         {in} (? ((CMD:if? jump) {=>} (list (CMD:if-then-pp jump) (CMD:if-else-pp jump)))
+                 ((CMD:goto? jump) {=>} (list (CMD:goto-pp jump)))
+                 (T {=>} ())))))
+
+
+{- i wsio. -}
+
+{test:}
+( (^ (in _ pr  __) (specialize pr in)) (read) (disp 'Inputs:) (read) (disp 'Program) )

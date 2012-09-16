@@ -1,0 +1,129 @@
+{- compile FCL<SE> to DRC<SE> - simple! -}
+(include fcl-datatypes.drcz1)
+
+(! compile
+ (^ (prog)
+    (let ((used-vars {<-} (list-all-vars prog))
+          (input-vars {<-} (PROGRAM:input-names prog))
+          (start-pp {<-} (PROGRAM:start-pp prog))
+          (block-map {<-} (PROGRAM:block-map prog)))
+         {in} (append (initialize-variables used-vars input-vars)
+                      (append (compile-blockmap block-map)
+                              (mk-start-block start-pp))))))
+
+(! initialize-variables
+ (^ (vars input)
+    (if vars
+        (append (if (member? (first vars) input)
+                    (list 'READ 'NAME (first vars))
+                    {else} (list 'CONST 'dupa 'NAME (first vars)))
+                (initialize-variables (rest vars) input))
+        {else} ())))
+
+(! mk-start-block (^ (pp) (list 'LOOKUP pp 'TRAPPLY)))
+
+(! compile-blockmap (^ (bm)
+                       (if (empty? bm)
+                           ()
+                           {else} (append (compile-block (first bm))
+                                          (compile-blockmap (rest bm))))))
+
+(! compile-block { : CONS(LABEL,CODE) -> DRC<SE>CODE }
+ (^ (block)
+    (let ((label {<-} (. block))
+          (code {<-} (, block)))
+         {in} (list 'PROC (compile-code code) 'NAME label))))
+
+(! compile-code
+ (^ (code)
+    (if code
+        (let ((      cmd {<-} (first code))
+              (rest-cmds {<-} (rest code)))
+             {in} (append (? ((CMD:let? cmd) {=>} (compile-assignment (CMD:let-variable cmd)
+                                                                      (CMD:let-expression cmd)))
+                             ((CMD:goto? cmd) {=>} (compile-jump (CMD:goto-pp cmd)))
+                             ((CMD:if? cmd) {=>} (compile-conditional (CMD:if-condition cmd)
+                                                                      (CMD:if-then-pp cmd)
+                                                                      (CMD:if-else-pp cmd)))
+                             ((CMD:return? cmd) {=>} (compile-return (CMD:return-expression cmd)))
+                             (T {=>} (list 'err! 'unknown 'command cmd)))
+                          (compile-code rest-cmds)))
+        {else} ())))
+
+(! compile-assignment (^ (var expr)
+                         (append (compile-expression expr)
+                                 (list 'FORGET var 'NAME var))))
+
+(! compile-jump (^ (pp) (list 'LOOKUP pp 'TRAPPLY)))
+
+(! compile-conditional (^ (cnd then-pp else-pp)
+                          (append (compile-expression cnd)
+                                  (list 'SELECT (list 'LOOKUP then-pp)
+                                                (list 'LOOKUP else-pp)
+                                        'TRAPPLY))))
+
+(! compile-return (^ (expr) (compile-expression expr))) {a halt?!}
+
+
+(! compile-expression
+ (^ (expr)
+    (? ((or (= expr ()) (# expr)) {=>} (list 'CONST expr))
+       ((@ expr) {=>} (if (is-primop? expr)
+                          (comp-primop expr)
+                          {else} (list 'LOOKUP expr)))
+       (T {=>} (compile-list (reverse expr))))))
+
+(! compile-list
+ (^ (exprs)
+    (if exprs
+   	(append (compile-expression (first exprs))
+		(compile-list (rest exprs)))
+        {else} ())))
+
+(! is-primop? (^ (sym) (member? sym '(; . , # @ = + - * / % > < disp read save load halt))))
+
+(! comp-primop (^ (e)
+   	       	  (? ((= e ';) {=>} '(CONS))
+		     ((= e '.) {=>} '(CAR))
+		     ((= e ',) {=>} '(CDR))
+		     ((= e '#) {=>} '(NUM))
+		     ((= e '@) {=>} '(ATOM))
+		     ((= e '=) {=>} '(EQ))
+		     ((= e '+) {=>} '(ADD))
+		     ((= e '-) {=>} '(SUB))
+		     ((= e '*) {=>} '(MUL))
+		     ((= e '/) {=>} '(DIV))
+		     ((= e '%) {=>} '(MOD))
+		     ((= e '>) {=>} '(GT))
+		     ((= e '<) {=>} '(LT))
+		     ((= e 'disp) {=>} '(DISP))
+		     ((= e 'read) {=>} '(READ))
+		     ((= e 'save) {=>} '(SAVE))
+		     ((= e 'load) {=>} '(LOAD))
+		     (T {=>} 'ERR!)
+		  )))
+
+(! list-all-vars (^ (prog)
+                    (uniq (append (PROGRAM:input-names prog)
+                                  (list-vars-in-bm (PROGRAM:block-map prog))))))
+
+(! list-vars-in-bm (^ (bm)
+                      (if bm
+                          (append (list-vars-in-block (, (first bm)))
+                                  (list-vars-in-bm (rest bm)))
+                          {else} ())))
+
+(! list-vars-in-block
+ (^ (code)
+    (if code
+        (let ((      cmd {<-} (first code))
+              (rest-cmds {<-} (rest code)))
+             {in} (if (CMD:let? cmd)
+                      (push (CMD:let-variable cmd)
+                            (list-vars-in-block rest-cmds))
+                      {else} ()))
+        {else} ())))
+                            
+
+{-main-}
+(compile (read))
