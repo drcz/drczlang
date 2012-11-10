@@ -1,0 +1,26 @@
+((p s)
+ init
+ (init (let op p) { live: p s }
+       (let os s)
+       (goto loop1))
+
+ (loop1 (if (= p ()) positive loop2))  { live: p s op os }
+
+ (loop2 (if (= s ()) negative loop3))  { live: p s op os }
+
+ (loop3 (if (= (. s) (. p)) loop4 next1))  { live: p s op os }
+
+ (loop4 (let p (, p)) { live: p s op os }
+        (let s (, s))
+        (goto loop1))
+
+ (next1 (if (= os ()) negative next2)) { live: op os }
+
+ (next2 (let p op) { live: op os [?!] }
+        (let s (, os))
+        (let os (, os))
+        (goto loop1))
+
+ (positive (return 'MATCH)) { live: - }
+
+ (negative (return 'MISMATCH)) ) { live: - }

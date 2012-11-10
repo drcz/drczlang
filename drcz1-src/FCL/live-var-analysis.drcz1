@@ -1,0 +1,144 @@
+(include fcl-datatypes.drcz1)
+
+(! call? (^ (expr) (and (not (@ expr)) (= (first expr) 'call))))
+(! call-pp (^ (expr) (second expr)))
+(! call-live (^ (expr) (rest (rest expr))))
+
+{ Implements algorithm 9.14 from Aho,Lam,Sethi,Ullman "Compilers: principles, techiques and tools". }
+
+(! LVA
+   (^ (blockmap)
+      (let ((   succ-map {<-} (get-succ-map blockmap))
+            (def/use-map {<-} (disp (get-def/use-map blockmap)))
+            (  block-pps {<-} (AL:keys blockmap)))
+           {in} (do-lva block-pps () block-pps succ-map def/use-map ()))))
+
+(! do-lva
+   (^ (pend res all-pps succ-map def/use-map change?)
+      (if pend
+          (let ((new-inp {<-} (process-block (first pend) succ-map def/use-map res))
+                (old-inp {<-} (AL:assoc (first pend) res PP:eq?))
+                (     pp {<-} (first pend))
+                (   pend {<-} (rest pend))
+                (res {<~} res)
+                (all-pps {<~} all-pps)
+                (succ-map {<~} succ-map)
+                (def/use-map {<~} def/use-map)
+                (change? {<~} change?))
+               {in} (do-lva pend
+                            (AL:update pp new-inp res PP:eq?)
+                            all-pps
+                            succ-map
+		            def/use-map
+		            (any change? (disp (diff new-inp old-inp)) (disp (diff old-inp new-inp)))))
+          {else} (if change?
+                     (do-lva all-pps (disp res) all-pps succ-map def/use-map ())
+                     {else} res))))
+
+(! process-block { pp,succ-map,use-def-map,in |-> in[B] }
+   (^ (pp succ-map def/use-map inp)
+      (let ((def/use {<-} (AL:assoc pp def/use-map PP:eq?))
+            (   succ {<-} (AL:assoc pp succ-map PP:eq?))
+            (inp {<~} inp))
+           {in} (let ((def {<-} (. def/use))
+                      (use {<-} (, def/use))
+                      (out {<-} (sum-successors-inps succ inp)))
+                     {in} (uniq (append use (diff out def))) ))))
+
+
+(! sum-successors-inps
+   (^ (succ inp)
+      (if succ
+          (append (AL:assoc (first succ) inp PP:eq?)
+                  (sum-successors-inps (rest succ) inp))
+          {else} ())))
+                      
+
+{ call graph - maps PP to list of its successor's [PPs] }
+(! get-succ-map
+   (^ (blockmap)
+      (if blockmap
+          (AL:add (. (first blockmap))
+                  (successors (, (first blockmap)))
+                  (get-succ-map (rest blockmap)))
+          {else} ())))
+
+(! successors
+ (^ (cb)
+    (if cb
+        (? ((and (CMD:let? (first cb))
+                 (call? (CMD:let-expression (first cb))))
+            {=>} (push (call-pp (CMD:let-expression (first cb)))
+                       (successors (rest cb))))
+           ((CMD:if? (first cb))
+            {=>} (list (CMD:if-then-pp (first cb)) (CMD:if-else-pp (first cb))))
+           ((CMD:goto? (first cb))
+            {=>} (list (CMD:goto-pp (first cb))))
+           (T {=>} (successors (rest cb))))
+        {else} ())))
+
+(! old-successors
+ (^ (cb)
+    (let ((jump {<-} (last cb)))
+         {in} (? ((CMD:if? jump) {=>} (list (CMD:if-then-pp jump)
+                                            (CMD:if-else-pp jump)))
+                 ((CMD:goto? jump) {=>} (list (CMD:goto-pp jump)))
+                 (T {=>} ())))))
+
+
+{ gather information on defined and used variables; resulting AL maps PP to pair (d . u)... }
+
+(! get-def/use-map
+   (^ (blockmap)
+      (if blockmap
+          (AL:add (. (first blockmap))
+                  (def/use (, (first blockmap)) () ())
+                  (get-def/use-map (rest blockmap)))
+          {else} ())))
+
+{ novum: getting def and use simultaneously }
+(! def/use
+   (^ (code-block def use)
+      (? ((empty? code-block)
+          {=>} (; (uniq def) (uniq use)))
+         ((CMD:let? (first code-block))
+          {=>} (if (member? (CMD:let-variable (first code-block))
+                            (append (list-vars (CMD:let-expression (first code-block))) use))
+                   (def/use (rest code-block)
+                            def
+                            (append (diff (list-vars (CMD:let-expression (first code-block))) def)
+                                    use))
+                   {else} (def/use (rest code-block)
+                                   (; (CMD:let-variable (first code-block)) def)
+                                   (append (diff (list-vars (CMD:let-expression (first code-block)))
+                                                 (; (CMD:let-variable (first code-block)) def))
+                                           use))))				
+         ((CMD:return? (first code-block))
+          {=>} (def/use (rest code-block)
+                        def
+                        (append (diff (list-vars (CMD:return-expression (first code-block)))
+                                      def)
+                                use)))
+         ((CMD:if? (first code-block))
+          {=>} (def/use (rest code-block)
+                        def
+                        (append (diff (list-vars (CMD:if-condition (first code-block)))
+                                      def)
+                                use)))
+         (T {=>} (def/use (rest code-block) def use)))))
+
+
+(! list-vars (^ (expr)
+                (? ((= expr ()) {=>} ())
+                   ((# expr) {=>} ())
+                   ((@ expr) {=>} (list expr))
+                   ((= (. expr) 'quote) {=>} ())
+                   ((= (. expr) 'call) {=>} (call-live expr))
+                   (T {=>} (list-vars-list (, expr))))))
+
+(! list-vars-list (^ (le)
+                     (if le
+                         (append (list-vars (. le)) (list-vars-list (, le)))
+                         {else} ())))
+
+(LVA (read))

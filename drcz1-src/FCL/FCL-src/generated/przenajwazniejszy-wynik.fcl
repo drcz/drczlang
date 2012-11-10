@@ -1,0 +1,105 @@
+{ 2012-11-04 21:20 totalny sukces! udało się skompilować nast.procedurę:
+
+  (PROC (NAME a
+         NAME b
+         LOOKUP a
+         CONST ()
+         EQ
+         SELECT (LOOKUP b)
+                (LOOKUP b
+                 LOOKUP a
+                 CDR
+                 PLOOKUP apd
+                 APPLY
+                 LOOKUP a
+                 CAR
+                 CONS)
+        FORGET a
+        FORGET b)
+   PNAME apd
+   PLOOKUP apd
+   APPLY)
+
+ i działa i nie wciągnął całego interpretera FCL do wyniku! }
+
+((inputs)
+ 4
+
+(4 (let d (gen (quote ())))
+   (let r inputs)
+   (let drc (call 3))
+   (return (. (. (, drc)))))
+
+(3 (let drc (call 2))
+   (let d (. drc))
+   (let r (. (, drc)))
+   (let pr (. (, (, drc))))
+   (let pd (. (, (, (, drc)))))
+   (return (list d r (quote ()) pr pd)))
+
+(2 (let val (. r))
+   (let r (, r))
+   (let d (al:update (quote a) (; val (al:lookup (quote a) d)) d))
+   (let val (. r))
+   (let r (, r))
+   (let d (al:update (quote b) (; val (al:lookup (quote b) d)) d))
+   (let r (; (. (al:lookup (quote a) d)) r))
+   (let r (; (quote ()) r))
+   (let arg1 (. r))
+   (let arg2 (. (, r)))
+   (let r (, (, r)))
+   (let res (= arg1 arg2))
+   (let r (; res r))
+   (let perm (. r))
+   (let r (, r))
+   (if perm 1 0))
+
+(1 (let r (; (. (al:lookup (quote b) d)) r))
+   (let d (al:update (quote a) (, (al:lookup (quote a) d)) d))
+   (let d (al:update (quote b) (, (al:lookup (quote b) d)) d))
+   (return (list d
+                 r
+                 (quote ())
+                 (quote ())
+                 (quote ((apd (name a
+                               name b
+                               lookup a
+                               const ()
+                               eq
+                               select (lookup b)
+                                      (lookup b
+                                       lookup a
+                                       cdr
+                                        plookup apd
+                                        apply
+                                        lookup a
+                                        car
+                                        cons)
+                               forget a
+                               forget b)))))))
+
+(0 (let r (; (. (al:lookup (quote b) d)) r))
+   (let r (; (. (al:lookup (quote a) d)) r))
+   (let arg1 (. r))
+   (let r (, r))
+   (let res (, arg1))
+   (let r (; res r))
+   (let drc (call 2))
+   (let d (. drc))
+   (let r (. (, drc)))
+   (let pr (. (, (, drc))))
+   (let pd (. (, (, (, drc)))))
+   (let r (; (. (al:lookup (quote a) d)) r))
+   (let arg1 (. r))
+   (let r (, r))
+   (let res (. arg1))
+   (let r (; res r))
+   (let arg1 (. r))
+   (let arg2 (. (, r)))
+   (let r (, (, r)))
+   (let res (; arg1 arg2))
+   (let r (; res r))
+   (let d (al:update (quote a) (, (al:lookup (quote a) d)) d))
+   (let d (al:update (quote b) (, (al:lookup (quote b) d)) d))
+   (return (list d r (quote ()) pr pd)))
+)

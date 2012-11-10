@@ -1,0 +1,47 @@
+ ( (pp vs program)
+  50
+
+  (50 (let block (AL:lookup pp program))
+       (goto 51))
+
+  (51 (let cmd (. block))
+      (let block (, block))
+      (let operator (. cmd))
+      (if (= operator 'let) 52 55))
+  
+  (52 (let var (. (, cmd)))
+      (let rhs (. (, (, cmd))))
+      (if (@ rhs) 54 521))
+
+  (521 (if (= (. rhs) 'call) 53 54))
+  
+  (53 (let pp (. (, rhs)))
+      (let value (call 50))
+      (let vs (AL:update var value vs))
+      (goto 51))
+
+  (54 (let vs (AL:update var (FCL:evalexpr rhs vs) vs))
+      (goto 51))
+  
+  (55 (if (= operator 'if) 56 59))
+  
+  (56 (let pp1 (. (, (, cmd))))
+      (let pp2 (. (, (, (, cmd)))))
+      (if (FCL:evalexpr (. (, cmd)) vs) 57 58))
+ 
+  (57 (let pp pp1)
+      (goto 50))
+
+ (58 (let pp pp2)
+     (goto 50))
+
+ (59 (if (= operator 'goto) 60 61))
+
+ (60 (let pp (. (, cmd)))
+     (goto 50))
+
+ (61 (if (= operator 'return) 62 63))
+
+ (62 (return (FCL:evalexpr (. (, cmd)) vs)))
+
+ (63 (return (; 'err cmd) )) )

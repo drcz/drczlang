@@ -1,0 +1,135 @@
+((init-vals)
+21
+
+(21 (let vs (al:new (quote (m)) init-vals))
+    (let vs (al:filter-by-keys (quote (m)) vs))
+    (let code (call 20))
+    (return (; (quote (n)) (; (; (quote ack) vs) code))))
+
+(20 (if (al:has-key? (; (quote ack) vs) (quote ())) 19 18))
+
+(19 (return (quote ())))
+
+(18 (let new-label (; (quote ack) vs))
+    (if (fcl:evalexpr (quote (= m 0)) vs) 17 16))
+
+(17 (let new-block (append (quote ()) (list (list (quote return) (fcl:reduce (quote (+ n 1)) vs)))))
+    (let code (al:update new-label new-block (quote ())))
+    (return code))
+
+(16 (let vs1 (al:filter-by-keys (quote (m)) vs))
+    (let vs2 (al:filter-by-keys (quote (m)) vs))
+    (let new-block (append (quote ()) (list (list (quote if)
+                                                  (fcl:reduce (quote (= n 0)) vs)
+                                                  (; (quote ack0) vs1)
+                                                  (; (quote ack1) vs2)))))
+    (let code (al:update new-label new-block (quote ())))
+    (let vs vs1)
+    (let code (call 15))
+    (let vs vs2)
+    (let code (call 7))
+    (return code))
+
+(15 (if (al:has-key? (; (quote ack0) vs) code) 14 13))
+
+(14 (return code))
+
+(13 (let new-label (; (quote ack0) vs))
+    (let vs (al:update (quote n) (fcl:evalexpr (quote 1) vs) vs))
+    (let vs (al:update (quote m) (fcl:evalexpr (quote (- m 1)) vs) vs))
+    (let value (call 12))
+    (let vs (al:update (quote n) value vs))
+    (let new-block (append (quote ())
+                           (list (list (quote return) (fcl:reduce (quote n) vs)))))
+    (let code (al:update new-label new-block code))
+    (return code))
+
+(12 (if (fcl:evalexpr (quote (= m 0)) vs) 11 10))
+
+(11 (return (fcl:evalexpr (quote (+ n 1)) vs)))
+
+(10 (if (fcl:evalexpr (quote (= n 0)) vs) 9 8))
+
+(9 (let vs (al:update (quote n) (fcl:evalexpr (quote 1) vs) vs))
+   (let vs (al:update (quote m) (fcl:evalexpr (quote (- m 1)) vs) vs))
+   (let value (call 12))
+   (let vs (al:update (quote n) value vs))
+   (return (fcl:evalexpr (quote n) vs)))
+
+(8 (let vs (al:update (quote n) (fcl:evalexpr (quote (- n 1)) vs) vs))
+   (let value (call 12))
+   (let vs (al:update (quote n) value vs))
+   (let vs (al:update (quote m) (fcl:evalexpr (quote (- m 1)) vs) vs))
+   (let value (call 12))
+   (let vs (al:update (quote n) value vs))
+   (return (fcl:evalexpr (quote n) vs)))
+
+(7 (if (al:has-key? (; (quote ack1) vs) code) 14 6))
+
+(6 (let new-label (; (quote ack1) vs))
+   (let new-block (append (quote ())
+                          (list (list (quote let)
+                                      (quote n)
+                                      (fcl:reduce (quote (- n 1)) vs)))))
+   (let vs (al:drop (quote n) vs))
+   (let vs1 vs)
+   (let vs (al:filter-by-keys (quote (m)) vs))
+   (let new-block (append new-block
+                          (list (list (quote let)
+                                      (quote n)
+                                      (; (quote call)
+                                         (; (; (quote ack) vs)
+                                               (quote (n))))))))
+   (let code (call 5))
+   (let vs (al:drop (quote n) vs1))
+   (let vs (al:update (quote m) (fcl:evalexpr (quote (- m 1)) vs) vs))
+   (let vs1 vs)
+   (let vs (al:filter-by-keys (quote (m m)) vs))
+   (let new-block (append new-block
+                          (list (list (quote let)
+                                      (quote n)
+                                      (; (quote call)
+                                         (; (; (quote ack) vs)
+                                               (quote (n))))))))
+   (let code (call 1))
+   (let vs (al:drop (quote n) vs1))
+   (let new-block (append new-block
+                         (list (list (quote return)
+                                     (fcl:reduce (quote n) vs)))))
+   (let code (al:update new-label new-block code))
+   (return code))
+
+(5 (if (al:has-key? (; (quote ack) vs) code) 14 4))
+
+(4 (let new-label (; (quote ack) vs))
+   (if (fcl:evalexpr (quote (= m 0)) vs) 3 2))
+
+(3 (let new-block (append (quote ())
+                          (list (list (quote return)
+                                      (fcl:reduce (quote (+ n 1)) vs)))))
+   (let code (al:update new-label new-block code))
+   (return code))
+
+(2 (let vs1 (al:filter-by-keys (quote (m)) vs))
+   (let vs2 (al:filter-by-keys (quote (m)) vs))
+   (let new-block (append (quote ())
+                          (list (list (quote if)
+                                      (fcl:reduce (quote (= n 0)) vs)
+                                      (; (quote ack0) vs1)
+                                      (; (quote ack1) vs2)))))
+   (let code (al:update new-label new-block code))
+   (let vs vs1) 
+   (let code (call 15))
+   (let vs vs2)
+   (let code (call 7))
+   (return code))
+
+(1 (if (al:has-key? (; (quote ack) vs) code) 14 0))
+
+(0 (let new-label (; (quote ack) vs))
+   (if (fcl:evalexpr (quote (= m 0)) vs) 3 2))
+
+)
+
+
+{ FUCK YEAH! }

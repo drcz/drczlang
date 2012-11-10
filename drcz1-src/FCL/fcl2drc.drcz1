@@ -1,3 +1,5 @@
+{ caution: does not [yet] work with FCL*<SE> [FCL with recursive calls]. }
+
 {- compile FCL<SE> to DRC<SE> - simple! -}
 (include fcl-datatypes.drcz1)
 

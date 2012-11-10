@@ -1,0 +1,256 @@
+(include fcl-datatypes.drcz1)
+
+(! LABEL:pp (^ (l) (. l)))
+(! LABEL:vs (^ (l) (, l)))
+(! LABEL:new (^ (pp vs) (; pp vs)))
+
+(! LABEL:new2 (^ (pp vs live-vars-map)
+                 (; pp (normalize vs (AL:assoc pp live-vars-map PP:eq?))))) {!}
+
+(! LABEL:eq? (^ (l1 l2)
+                (and (PP:eq? (LABEL:pp l1) (LABEL:pp l2))
+                     (STORE:eq? (LABEL:vs l1) (LABEL:vs l2)))))
+
+(! call? (^ (expr) (and (not (@ expr)) (= (first expr) 'call))))
+(! call-pp (^ (expr) (second expr)))
+(! call-live (^ (expr) (rest (rest expr))))
+
+{------------------------------------------------------------------------------------------}
+(! specialize
+   (^ (program div init-vals live-vars-map)
+      (PROGRAM:new (diff (PROGRAM:input-names program) div)
+                   (LABEL:new2 (PROGRAM:start-pp program) (AL:new div init-vals) live-vars-map)
+                   (drive (list (LABEL:new2 (PROGRAM:start-pp program)
+                                            (AL:new div init-vals)
+                                            live-vars-map))
+                     { we assume all inputs live at initial block, therefore no normalisation is needed } 
+                          ()
+                          (PROGRAM:block-map program)
+                          live-vars-map))))
+                                         
+(! drive
+   (^ (pend res program live-vars-map)
+      (if (empty? pend)
+          res
+          {else} (let ((  pp {<-} (LABEL:pp (disp (first pend))))
+                       (  vs {<-} (LABEL:vs (first pend)) {!})
+                       (pend {<-} (rest pend))
+                       (          res {<~} res)
+                       (      program {<~} program)
+                       (live-vars-map {<~} live-vars-map))
+                      {in} (if (AL:has-key? (LABEL:new pp vs) res LABEL:eq?) { already driven? }
+                               (drive pend res program live-vars-map)
+                               {else} (let ((new-block {<-} (drive-block (AL:assoc pp program PP:eq?)
+                                                                         vs
+                                                                         program
+                                                                         live-vars-map))
+                                            (    label {<-} (LABEL:new pp vs))
+                                            (           vs {<~} vs)
+                                            (         pend {<~} pend)
+                                            (          res {<~} res)
+                                            (      program {<~} program)
+                                            (live-vars-map {<~} live-vars-map))
+                                           {in} (drive (append (successors new-block) pend)
+                                                       (AL:add label new-block res)
+                                                       program
+                                                       live-vars-map)))))))
+
+(! normalize (^ (vs live-vars) (AL:filter-by-keys live-vars vs VARIABLE:eq?)))
+
+(! successors
+ (^ (cb)
+    (if cb
+        (? ((and (CMD:let? (first cb))
+                 (call? (CMD:let-expression (first cb))))
+            {=>} (push (call-pp (CMD:let-expression (first cb)))
+                       (successors (rest cb))))
+           ((CMD:if? (first cb))
+            {=>} (list (CMD:if-then-pp (first cb)) (CMD:if-else-pp (first cb))))
+           ((CMD:goto? (first cb))
+            {=>} (list (CMD:goto-pp (first cb))))
+           (T {=>} (successors (rest cb))))
+        {else} ())))
+
+(! drive-block
+   (^ (code vs program live-vars-map)
+      (let ((  op {<-} (first (first  code)))
+            (args {<-} (rest (first code)))
+            (code {<-} (rest code))
+            (           vs {<~} vs)
+            (      program {<~} program)
+            (live-vars-map {<~} live-vars-map))
+           {in} (? ((= op 'goto) {=>} (drive-block (AL:assoc (disp (first args)) program PP:eq?)
+                                                   (disp (normalize vs (AL:assoc (first args) live-vars-map PP:eq?)))
+                                                   program
+                                                   live-vars-map))
+                   ((= op 'return) {=>} (list (CMD:mk-return (reduce (first args) vs))))
+                   ((= op 'if) {=>} (drive-if (first args) (second args) (third args) vs program live-vars-map))
+                   ((= op 'let) {=>} (drive-let (first args) (second args) vs code program live-vars-map))))))
+
+
+(! drive-if
+   (^ (permise pp1 pp2 vs program live-vars-map)
+      (if (static? permise (AL:keys vs))
+          (if (eval-expr permise vs) { jedziemy z c.tr.otf! }
+              (drive-block (AL:assoc (disp pp1) program PP:eq?)
+                           (disp (normalize vs (AL:assoc pp1 live-vars-map PP:eq?)))
+                           program
+                           live-vars-map)
+              {else} (drive-block (AL:assoc (disp pp2) program PP:eq?)
+                                  (disp (normalize vs (AL:assoc pp2 live-vars-map PP:eq?)))
+                                  program
+                                  live-vars-map))
+          {else} (list (CMD:mk-if (reduce permise vs)
+                                  (LABEL:new2 pp1 vs live-vars-map)
+                                  (LABEL:new2 pp2 vs live-vars-map))))))
+
+(! drive-let
+   (^ (var expr vs code program live-vars-map)
+      (if (static? expr (AL:keys vs))
+          (if (call? expr)
+              (drive-block code (STORE:update var (run-block (call-pp expr) vs program) vs) program live-vars-map)
+              {else} (drive-block code (STORE:update var (eval-expr expr vs) vs) program live-vars-map))
+          {else} (if (call? expr)
+                     (push (CMD:mk-let var (list 'call (LABEL:new2 (call-pp expr) vs live-vars-map)))
+                           (drive-block code (STORE:drop var vs) program live-vars-map))
+                     {else} (push (CMD:mk-let var (reduce expr vs))
+                                  (drive-block code (STORE:drop var vs) program live-vars-map))))))
+
+(! static? (^ (expr div)
+              (? ((= expr ()) {=>} T)
+                 ((# expr) {=>} T)
+                 ((@ expr) {=>} (member? expr div))
+                 ((= (. expr) 'quote) {=>} T)
+                 ((= (. expr) 'gen) {=>} ())
+                 ((= (. expr) 'call) {=>} (stat-env? (, (, expr)) div)) {!}
+                 (T {=>} (stat-list? (rest expr) div)))))
+
+(! stat-env? (^ (live div)
+                (if live
+                    (if (memberg? (first live) div VARIABLE:eq?)
+                        (stat-env? (rest live) div)
+                        {else} ())
+                    {else} T)))
+
+(! stat-list? (^ (lst div)
+                 (? ((empty? lst) {=>} T)
+                    ((static? (first lst) div) {=>} (stat-list? (rest lst) div))
+                    (T {=>} ()))))
+
+(! reduce (^ (expr vs)
+             (? ((static? expr (AL:keys vs))
+                 {=>} (if (or (@ expr) (not (= (. expr) 'quote)))
+                          (list 'quote (eval-expr expr vs))
+                          {else} expr))
+                ((@ expr) {=>} expr) {,,dynamic var''}
+                (T {=>} (; (. expr) (reduce-list (, expr) vs))))))
+
+(! reduce-list (^ (lst vs)
+                  (if (empty? lst)
+                      ()
+                      {else} (push (reduce (first lst) vs)
+                             (reduce-list (rest lst) vs)))))
+
+
+(! eval-expr { EXPR x STORE -> SE }
+ (^ (expr store)
+    (? ((= expr ()) {=>} ())
+       ((# expr) {=>} expr)
+       ((@ expr) {=>} (STORE:lookup expr store))
+       ((= (first expr) 'quote) {=>} (second expr))
+       (T {=>} (apply-op (first expr)
+                         (evlis-expr (rest expr) store))))))
+
+(! apply-op (^ (op argvals)
+               (? ((= op '+) {=>} (+ (first argvals) (second argvals)))
+                  ((= op '-) {=>} (- (first argvals) (second argvals)))
+                  ((= op '*) {=>} (* (first argvals) (second argvals)))
+                  ((= op '/) {=>} (/ (first argvals) (second argvals)))
+                  ((= op '%) {=>} (% (first argvals) (second argvals)))
+                  ((= op '>) {=>} (> (first argvals) (second argvals)))
+                  ((= op '<) {=>} (< (first argvals) (second argvals)))
+                  ((= op '=) {=>} (= (first argvals) (second argvals)))
+                  ((= op '#) {=>} (# (first argvals)))
+                  ((= op '@) {=>} (@ (first argvals)))
+                  ((= op '.) {=>} (if (first argvals) (. (first argvals)) {else} ()))
+                  ((= op ',) {=>} (if (first argvals) (, (first argvals)) {else} ()))
+                  ((= op ';) {=>} (; (first argvals) (second argvals)))
+                  ((= op 'list) {=>} argvals)
+                  ((= op 'diff) {=>} (diff (first argvals) (second argvals)))
+                  ((= op 'drop) {=>} (drop-all (first argvals) (second argvals)))
+                  ((= op 'intersect) {=>} (intersect (first argvals) (second argvals)))
+		  ((= op 'append) {=>} (append (first argvals) (second argvals)))
+                  ((= op 'AL:new) {=>} (AL:new (first argvals) (second argvals)))
+                  ((= op 'AL:has-key?) {=>} (AL:has-key? (first argvals) (second argvals) LABEL:eq?)) { !!! }
+                  ((= op 'AL:lookup) {=>} (AL:assoc (first argvals) (second argvals) eq-rec?))
+                  ((= op 'AL:update) {=>} (AL:update (first argvals) (second argvals) (third argvals) eq-rec?))
+                  ((= op 'AL:drop) {=>} (AL:drop (first argvals) (second argvals) eq-rec?))
+                  ((= op 'AL:drop-many) {=>} (AL:drop-many (first argvals) (second argvals) eq-rec?))
+                  ((= op 'AL:filter-by-keys) {=>} (AL:filter-by-keys (first argvals) (second argvals) eq-rec?))
+                  ((= op 'FCL:evalexpr) {=>} (eval-expr (first argvals) (second argvals)))
+                  ((= op 'FCL:reduce) {=>} (reduce (first argvals) (second argvals)))
+		  ((= op 'FCL:call?) {=>} (call? (first argvals)))
+		  ((= op 'static?) {=>} (static? (first argvals) (second argvals))) {!}
+		  ((= op 'gen) {=>} (first argvals))
+                  (T {=>} (list 'ERR 'apply-primop: 'unknow 'operator op '!)))))
+               
+(! evlis-expr (^ (expr-list store)
+                 (if (empty? expr-list)
+                     ()
+                     {else} (; (eval-expr (first expr-list) store)
+                               (evlis-expr (rest expr-list) store)))))
+
+
+
+{ a od kiedy mamy calle, wymagany jest też cały interpreter... =========================================================== }
+
+(! run-block { Pp x STORE x BLOCK-MAP -> SE }
+ (^ (pp store block-map)
+    (step (BLOCK-MAP:find pp block-map) store block-map)))
+                
+(! step { CODE-BLOCK x STORE x BLOCK-MAP -> SE }
+ (^ (code-block store block-map)
+    (let ((      cmd {<-} (CODE-BLOCK:first-cmd code-block))
+          (  cb-rest {<-} (CODE-BLOCK:rest-cmds code-block))
+          (    store {<~} store)
+          (block-map {<~} block-map))
+         {in} (? (   (CMD:let? cmd) {=>} (step cb-rest
+                                               (STORE:update (CMD:let-variable cmd)
+                                                             (let ((expr {<-} (CMD:let-expression cmd))
+                                                                   (    store {<~} store)
+                                                                   (block-map {<~} block-map))
+                                                                  {in} (if (call? expr)
+                                                                           (run-block (call-pp expr) store block-map)
+                                                                           {else} (eval-expr expr store)))
+                                                             store)
+                                               block-map))
+
+                 (  (CMD:goto? cmd) {=>} (run-block (CMD:goto-pp cmd) store block-map))
+
+                 (    (CMD:if? cmd) {=>} (if (eval-expr (CMD:if-condition cmd) store)
+                                             (run-block (CMD:if-then-pp cmd) store block-map)
+                                             {else} (run-block (CMD:if-else-pp cmd) store block-map)))
+
+                 ((CMD:return? cmd) {=>} (let ((expr {<-} (CMD:return-expression cmd))
+                                               (    store {<~} store)
+                                               (block-map {<~} block-map))
+                                              {in} (if (call? expr)
+                                                       (run-block (call-pp expr) store block-map)
+                                                       {else} (eval-expr expr store))))
+                 (                T {=>} (list 'ERR 'step: 'unknown 'command cmd))))))
+
+
+
+{---------------------------------------------------------------------------------------------------------------}
+
+{-main-}
+((^ (livemap _4 initvals _3 div _2 prg _1)
+    (specialize prg div initvals livemap))
+ (disp 'LIVEMAP:)
+ (read)
+ (disp 'INIT-VALS:)
+ (read)
+ (disp 'DIVISION:)
+ (read)
+ (disp 'PROGRAM:) )
+

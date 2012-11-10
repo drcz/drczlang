@@ -1,0 +1,50 @@
+((q right)
+ init
+
+ (init (let q-tail q) { q right }
+       (let left ())
+       (goto loop))
+
+ (loop (if (= q-tail ()) stop cont)) { q-tail left q right }
+
+ (cont (let instruction (. q-tail)) { q-tail left q right }
+       (let q-tail (, q-tail))
+       (let operator (. (, instruction)))
+       (goto check-right))
+
+ (check-right (if (= operator 'RIGHT) do-right check-left)) { q left right q-tail operator instruction}
+ (check-left  (if (= operator 'LEFT) do-left check-write)) { q left right q-tail operator instruction}
+ (check-write (if (= operator 'WRITE) do-write check-goto)) { q left right q-tail operator instruction}
+ (check-goto  (if (= operator 'GOTO) do-goto check-if)) { q left right q-tail operator instruction}
+ (check-if    (if (= operator 'IF) do-if err)) { q left right q-tail operator instruction}
+
+ (do-right (let left (; (. right) left)) { q left right q-tail }
+           (let right (, right))
+           (goto loop))
+
+ (do-left (let right (; (. left) right)) { q left right q-tail }
+          (let left (, left))
+          (goto loop))
+
+ (do-write (let symbol (. (, (, instruction)))) { q left right q-tail instruction }
+           (let right (; symbol (, right)))
+           (goto loop))
+
+ (do-goto (let label (. (, (, instruction)))) { q left right q-tail instruction }
+          (goto jump))
+
+ (do-if (let symbol (. (, (, instruction)))) { q-tail q left right instruction }
+        (let label (. (, (, (, instruction)))))
+        (if (= symbol (. right)) jump loop))
+
+ (jump (let q-tail q) { q left right label }
+       (goto jump-check)) 
+
+ (jump-check (if (= label (. (. q-tail))) loop jump-next)) { q left right label }
+
+ (jump-next (let q-tail (, q-tail)) { q-tail q left right label }
+            (goto jump-check))
+
+ (err (return (list 'err instruction))) { instruction }
+
+ (stop (return left)) ) { right }
