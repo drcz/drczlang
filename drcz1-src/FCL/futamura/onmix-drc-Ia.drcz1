@@ -1,3 +1,7 @@
+{ -= 997-procentowy satanista i kanibal, Gdańsk 2012-11-04 =- }
+
+{ to niezwykłe, ale zasadniczo to działa. }
+
 (include fcl-datatypes.drcz1)
 
 (! LABEL:pp (^ (l) (. l)))
@@ -32,7 +36,7 @@
    (^ (pend res program live-vars-map)
       (if (empty? pend)
           res
-          {else} (let ((  pp {<-} (LABEL:pp (first pend)))
+          {else} (let ((  pp {<-} (LABEL:pp (disp (first pend))))
                        (  vs {<-} (LABEL:vs (first pend)) {!})
                        (pend {<-} (rest pend))
                        (          res {<~} res)
@@ -79,8 +83,8 @@
             (           vs {<~} vs)
             (      program {<~} program)
             (live-vars-map {<~} live-vars-map))
-           {in} (? ((= op 'goto) {=>} (drive-block (AL:assoc (first args) program PP:eq?)
-                                                   (normalize vs (AL:assoc (first args) live-vars-map PP:eq?))
+           {in} (? ((= op 'goto) {=>} (drive-block (AL:assoc (disp (first args)) program PP:eq?)
+                                                   (disp (normalize vs (AL:assoc (first args) live-vars-map PP:eq?)))
                                                    program
                                                    live-vars-map))
                    ((= op 'return) {=>} (list (CMD:mk-return (reduce (first args) vs))))
@@ -92,12 +96,12 @@
    (^ (permise pp1 pp2 vs program live-vars-map)
       (if (static? permise (AL:keys vs))
           (if (eval-expr permise vs) { jedziemy z c.tr.otf! }
-              (drive-block (AL:assoc pp1 program PP:eq?)
-                           (normalize vs (AL:assoc pp1 live-vars-map PP:eq?))
+              (drive-block (AL:assoc (disp pp1) program PP:eq?)
+                           (disp (normalize vs (AL:assoc pp1 live-vars-map PP:eq?)))
                            program
                            live-vars-map)
-              {else} (drive-block (AL:assoc pp2 program PP:eq?)
-                                  (normalize vs (AL:assoc pp2 live-vars-map PP:eq?))
+              {else} (drive-block (AL:assoc (disp pp2) program PP:eq?)
+                                  (disp (normalize vs (AL:assoc pp2 live-vars-map PP:eq?)))
                                   program
                                   live-vars-map))
           {else} (list (CMD:mk-if (reduce permise vs)
@@ -115,6 +119,7 @@
                            (drive-block code (STORE:drop var vs) program live-vars-map))
                      {else} (push (CMD:mk-let var (reduce expr vs))
                                   (drive-block code (STORE:drop var vs) program live-vars-map))))))
+
 
 (! static? (^ (expr div)
               (? ((= expr ()) {=>} T)
@@ -151,6 +156,7 @@
                       {else} (push (reduce (first lst) vs)
                              (reduce-list (rest lst) vs)))))
 
+{ no i eval samyż... }
 
 (! eval-expr { EXPR x STORE -> SE }
  (^ (expr store)
@@ -241,17 +247,352 @@
 
 
 
-{---------------------------------------------------------------------------------------------------------------}
+{= testy, odloty ===========================================================================}
 
-{-main-}
-((^ (livemap _4 initvals _3 div _2 prg _1)
-    (specialize prg div initvals livemap))
- (read)
- (disp 'LIVEMAP:)
- (read)
- (disp 'INIT-VALS:)
- (read)
- (disp 'DIVISION:)
- (read)
- (disp 'PROGRAM:) )
+(! drc
+'((program inputs)
+ init
 
+ (init (let D (gen ()))
+       (let R inputs)
+       (let C program)
+       (let PR ())
+       (let PD ())
+       (let DRC (call step D R C PR PD))
+       (return (. (. (, DRC))))) { zwraca (. R) }
+
+ (step (if (= C ()) end step2))
+
+ (end (return (list D R C PR PD))) { w sumie zawsze C==()... }
+
+ (step2 (let cmd (. C))
+        (let C (, C))
+        (goto check-const))
+
+ (check-const   (if (= cmd 'CONST) do-const check-proc))
+ (check-proc    (if (= cmd 'PROC) do-proc check-lookup))
+ (check-lookup  (if (= cmd 'LOOKUP) do-lookup check-plookup))
+ (check-plookup (if (= cmd 'PLOOKUP) do-plookup check-name))
+ (check-name    (if (= cmd 'NAME) do-name check-pname))
+ (check-pname   (if (= cmd 'PNAME) do-pname check-forget))
+ (check-forget  (if (= cmd 'FORGET) do-forget check-pforget))
+ (check-pforget (if (= cmd 'PFORGET) do-pforget check-select))
+ (check-select  (if (= cmd 'SELECT) do-select check-apply))
+ (check-apply   (if (= cmd 'APPLY) do-apply check-cons))
+ (check-cons (if (= cmd 'CONS) do-cons check-car))
+ (check-car  (if (= cmd 'CAR) do-car check-cdr))
+ (check-cdr  (if (= cmd 'CDR) do-cdr check-eq))
+ (check-eq   (if (= cmd 'EQ) do-eq check-num))
+ (check-num  (if (= cmd 'NUM) do-num check-atom))
+ (check-atom (if (= cmd 'ATOM) do-atom check-add))
+ (check-add  (if (= cmd 'ADD) do-add check-sub))
+ (check-sub  (if (= cmd 'SUB) do-sub check-mul))
+ (check-mul  (if (= cmd 'MUL) do-mul check-div))
+ (check-div  (if (= cmd 'DIV) do-div check-mod))
+ (check-mod  (if (= cmd 'MOD) do-mod check-gt))
+ (check-gt   (if (= cmd 'GT) do-gt check-lt))
+ (check-lt   (if (= cmd 'LT) do-lt err))
+
+ (err (return (list 'ERROR 'UNKNOWN 'COMMAND cmd)))
+
+ (do-const (let exp (. C))
+           (let C (, C))
+           (let R (; exp R))
+           (goto step))
+
+ (do-proc (let proc (. C))
+          (let C (, C))
+          (let PR (; proc PR)) {!}
+          (goto step))
+
+ (do-lookup (let var (. C))
+            (let C (, C))
+            (let R (; (. (AL:lookup var D)) R))
+            (goto step))
+
+ (do-name (let var (. C))
+          (let val (. R))
+          (let C (, C))
+          (let R (, R))
+          (let D (AL:update var (; val (AL:lookup var D)) D))
+          (goto step))
+
+ (do-forget (let var (. C))
+            (let C (, C))
+	    (let D (AL:update var (, (AL:lookup var D)) D))
+            (goto step))
+
+ (do-plookup (let var (. C))
+             (let C (, C))
+             (let PR (; (. (AL:lookup var PD)) PR))
+             (goto step))
+
+ (do-pname (let var (. C))
+           (let proc (. PR))
+           (let C (, C))
+           (let PR (, PR)) {!}
+           (let PD (AL:update var (; proc (AL:lookup var PD)) PD))
+           (goto step))
+
+ (do-pforget (let var (. C))
+             (let C (, C))
+	     (let PD (; (AL:update var (, (AL:lookup var PD)) PD) ()))
+             (goto step))
+
+ (do-select (let perm (. R))
+            (let R (, R))
+            (let concl (. C))
+            (let alt (. (, C)))
+            (let C (, (, C)))
+            (if perm do-concl do-alt))
+
+ (do-concl (let C (append concl C))
+           (goto step))
+
+ (do-alt (let C (append alt C))
+         (goto step))
+
+ (do-apply (let proc (. PR))
+           (let PR (, PR))
+           (let oC C)
+	   (let C proc)
+           (let DRC (call step D R C PR PD))
+           (let D (. DRC))
+           (let R (. (, DRC)))
+           (let PR (. (, (, DRC))))
+           (let PD (. (, (, (, DRC)))))
+           (let C oC)
+           (goto step))
+
+ (do-cons (let arg1 (. R))
+          (let arg2 (. (, R)))
+          (let R (, (, R)))
+          (let res (; arg1 arg2))
+          (let R (; res R))
+          (goto step))
+
+ (do-car (let arg1 (. R))
+         (let R (, R))
+         (let res (. arg1))
+         (let R (; res R))
+         (goto step))
+
+ (do-cdr (let arg1 (. R))
+         (let R (, R))
+         (let res (, arg1))
+         (let R (; res R))
+         (goto step))
+
+ (do-eq (let arg1 (. R))
+        (let arg2 (. (, R)))
+        (let R (, (, R)))
+        (let res (= arg1 arg2))
+        (let R (; res R))
+        (goto step))
+
+ (do-num (let arg1 (. R))
+         (let R (, R))
+         (let res (# arg1))
+         (let R (; res R))
+         (goto step))
+
+ (do-atom (let arg1 (. R))
+          (let R (, R))
+          (let res (@ arg1))
+          (let R (; res R))
+          (goto step))
+
+ (do-add (let arg1 (. R))
+         (let arg2 (. (, R)))
+         (let R (, (, R)))
+         (let res (+ arg1 arg2))
+         (let R (; res R))
+         (goto step))
+
+ (do-sub (let arg1 (. R))
+         (let arg2 (. (, R)))
+         (let R (, (, R)))
+         (let res (- arg1 arg2))
+         (let R (; res R))
+         (goto step))
+
+ (do-mul (let arg1 (. R))
+         (let arg2 (. (, R)))
+         (let R (, (, R)))
+         (let res (* arg1 arg2))
+         (let R (; res R))
+         (goto step))
+
+ (do-div (let arg1 (. R))
+         (let arg2 (. (, R)))
+         (let R (, (, R)))
+         (let res (/ arg1 arg2))
+         (let R (; res R))
+         (goto step))
+
+ (do-mod (let arg1 (. R))
+         (let arg2 (. (, R)))
+         (let R (, (, R)))
+         (let res (% arg1 arg2))
+         (let R (; res R))
+         (goto step))
+
+ (do-gt (let arg1 (. R))
+        (let arg2 (. (, R)))
+        (let R (, (, R)))
+        (let res (> arg1 arg2))
+        (let R (; res R))
+        (goto step))
+
+ (do-lt (let arg1 (. R))
+        (let arg2 (. (, R)))
+        (let R (, (, R)))
+        (let res (< arg1 arg2))
+        (let R (; res R))
+        (goto step))
+) )
+
+(! drc-live
+  {live-map}
+'(
+(init program inputs)
+(step d r pd pr c)
+(end d r c pr pd)
+(step2 pr pd d r c)
+(check-const d r pd pr c cmd)
+(check-proc pr pd d r c cmd)
+(check-lookup d r pd pr c cmd)
+(check-plookup r pr pd d c cmd)
+(check-name d r pr pd c cmd)
+(check-pname d pr pd c r cmd)
+(check-forget d r pd pr c cmd)
+(check-pforget d pr pd r c cmd)
+(check-select d pr pd r c cmd)
+(check-apply d pr pd r c cmd)
+(check-cons d pr pd r c cmd)
+(check-car d pr pd r c cmd)
+(check-cdr d pr pd r c cmd)
+(check-eq d pr pd r c cmd)
+(check-num d pr pd r c cmd)
+(check-atom d pr pd r c cmd)
+(check-add d pr pd r c cmd)
+(check-sub d pr pd r c cmd)
+(check-mul d pr pd r c cmd)
+(check-div d pr pd r c cmd)
+(check-mod d r pr pd c cmd)
+(check-gt d r pr pd c cmd)
+(check-lt d pr pd r c cmd)
+(err cmd)
+(do-const d r pd pr c)
+(do-proc d r pd pr c)
+(do-lookup d r pd pr c)
+(do-name d r pd pr c)
+(do-forget d r pd pr c)
+(do-plookup d r pd pr c)
+(do-pname d r pd pr c)
+(do-pforget d r pd pr c)
+(do-select d pr pd r c)
+(do-concl concl d r pd pr c)
+(do-alt alt d r pd pr c)
+(do-apply d r pd pr c)
+(do-cons d r pd pr c)
+(do-car d r pd pr c)
+(do-cdr d r pd pr c)
+(do-eq d r pd pr c)
+(do-num d r pd pr c)
+(do-atom d r pd pr c)
+(do-add d r pd pr c)
+(do-sub d r pd pr c)
+(do-mul d r pd pr c)
+(do-div d r pd pr c)
+(do-mod d r pd pr c)
+(do-gt d r pd pr c)
+(do-lt d r pd pr c)
+ )
+)
+
+(! drc-div '(program))
+
+(! init-vals
+ '({prog:}
+
+{ z tym niestety ma problem, wciąga mianowicie cały 'interpreter DRC' do wyniku...
+
+ (PROC (PNAME p
+        NAME l
+        LOOKUP l
+        CONST ()
+        EQ
+        SELECT (CONST ())
+               (LOOKUP l
+                CDR
+                PLOOKUP p
+                PLOOKUP map
+                APPLY                
+                LOOKUP l
+                CAR
+                PLOOKUP p
+                APPLY
+                CONS)
+        PFORGET p
+        FORGET l)
+  PNAME map
+  PROC (NAME x LOOKUP x LOOKUP x MUL FORGET x)
+  PNAME sq
+  PLOOKUP sq
+  PLOOKUP map
+  APPLY)}
+
+
+  (PROC (NAME x LOOKUP x LOOKUP x MUL FORGET x)
+   PNAME sq
+   PROC (NAME l
+         LOOKUP l
+         CONST ()
+         EQ
+         SELECT (CONST ())
+                (LOOKUP l
+                 CDR
+                 PLOOKUP sqlist
+                 APPLY
+                 LOOKUP l
+                 CAR
+                 PLOOKUP sq
+                 APPLY
+                 CONS)
+        FORGET l)
+   PNAME sqlist
+   PLOOKUP sqlist
+   APPLY)
+
+{
+  (PROC (NAME a
+         NAME b
+         LOOKUP a
+         CONST ()
+         EQ
+         SELECT (LOOKUP b)
+                (LOOKUP b
+                 LOOKUP a
+                 CDR
+                 PLOOKUP apd
+                 APPLY
+                 LOOKUP a
+                 CAR
+                 CONS)
+        FORGET a
+        FORGET b)
+   PNAME apd
+   PLOOKUP apd
+   APPLY)
+}
+  ))
+
+(specialize drc drc-div init-vals drc-live)
+
+
+{IT WORKS!!!!!}
+
+{ Wyniczek:
+
+}
