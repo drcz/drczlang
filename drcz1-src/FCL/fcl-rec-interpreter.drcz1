@@ -1,0 +1,157 @@
+{-- Simple Flowchart Language With Recursion Interpreter --}
+
+(include fcl-datatypes.drcz1)
+
+(! run { PROGRAM x List<SE> -> SE }
+ (^ (program inputvals)
+    (run-block (PROGRAM:start-pp program)
+               (STORE:new (PROGRAM:input-names program) inputvals)
+               (PROGRAM:block-map program))))
+
+
+(! run-block { Pp x STORE x BLOCK-MAP -> SE }
+ (^ (pp store block-map)
+    (step (BLOCK-MAP:find pp block-map) store block-map)))
+                
+
+{- wpierdalamy się z callami :) -}
+(! call? (^ (expr) (and (not (@ expr)) (= (first expr) 'call))))
+(! call-pp (^ (expr) (second expr)))
+
+(! step { CODE-BLOCK x STORE x BLOCK-MAP -> SE }
+ (^ (code-block store block-map)
+    (let ((      cmd {<-} (CODE-BLOCK:first-cmd code-block))
+          (  cb-rest {<-} (CODE-BLOCK:rest-cmds code-block))
+          (    store {<~} store)
+          (block-map {<~} block-map))
+         {in} (? (   (CMD:let? cmd) {=>} (step cb-rest
+                                               (STORE:update (CMD:let-variable cmd)
+                                                             (let ((expr {<-} (CMD:let-expression cmd))
+                                                                   (    store {<~} store)
+                                                                   (block-map {<~} block-map))
+                                                                  {in} (if (call? expr)
+                                                                           (run-block (call-pp expr) store block-map)
+                                                                           {else} (eval-expr expr store)))
+                                                             store)
+                                               block-map))
+
+                 (  (CMD:goto? cmd) {=>} (run-block (CMD:goto-pp cmd) store block-map))
+
+                 (    (CMD:if? cmd) {=>} (if (eval-expr (CMD:if-condition cmd) store)
+                                             (run-block (CMD:if-then-pp cmd) store block-map)
+                                             {else} (run-block (CMD:if-else-pp cmd) store block-map)))
+
+                 ((CMD:return? cmd) {=>} (let ((expr {<-} (CMD:return-expression cmd))
+                                               (    store {<~} store)
+                                               (block-map {<~} block-map))
+                                              {in} (if (call? expr)
+                                                       (run-block (call-pp expr) store block-map)
+                                                       {else} (eval-expr expr store))))
+                 (                T {=>} (list 'ERR 'step: 'unknown 'command cmd))))))
+
+
+
+{ no i eval samyż... }
+
+(! eval-expr { EXPR x STORE -> SE }
+ (^ (expr store)
+    (? ((= expr ()) {=>} ())
+       ((# expr) {=>} expr)
+       ((@ expr) {=>} (STORE:lookup expr store))
+       ((= (first expr) 'quote) {=>} (second expr))       
+       (T {=>} (apply-op (first expr)
+                         (evlis-expr (rest expr) store))))))
+
+(! apply-op (^ (op argvals)
+               (? ((= op '+) {=>} (+ (first argvals) (second argvals)))
+                  ((= op '-) {=>} (- (first argvals) (second argvals)))
+                  ((= op '*) {=>} (* (first argvals) (second argvals)))
+                  ((= op '/) {=>} (/ (first argvals) (second argvals)))
+                  ((= op '%) {=>} (% (first argvals) (second argvals)))
+                  ((= op '>) {=>} (> (first argvals) (second argvals)))
+                  ((= op '<) {=>} (< (first argvals) (second argvals)))
+                  ((= op '=) {=>} (= (first argvals) (second argvals)))
+                  ((= op '#) {=>} (# (first argvals)))
+                  ((= op '@) {=>} (@ (first argvals)))
+                  ((= op '.) {=>} (if (first argvals) (. (first argvals)) {else} ()))
+                  ((= op ',) {=>} (if (first argvals) (, (first argvals)) {else} ()))
+                  ((= op ';) {=>} (; (first argvals) (second argvals)))
+                  ((= op 'list) {=>} argvals)
+                  ((= op 'diff) {=>} (diff (first argvals) (second argvals)))
+                  ((= op 'drop) {=>} (drop-all (first argvals) (second argvals)))
+                  ((= op 'intersect) {=>} (intersect (first argvals) (second argvals)))
+		  ((= op 'append) {=>} (append (first argvals) (second argvals)))
+                  ((= op 'AL:new) {=>} (AL:new (first argvals) (second argvals)))
+                  ((= op 'AL:has-key?) {=>} (AL:has-key? (first argvals) (second argvals) LABEL:eq?)) { !!! }
+                  ((= op 'AL:lookup) {=>} (AL:assoc (first argvals) (second argvals) eq-rec?))
+                  ((= op 'AL:update) {=>} (AL:update (first argvals) (second argvals) (third argvals) eq-rec?))
+                  ((= op 'AL:drop) {=>} (AL:drop (first argvals) (second argvals) eq-rec?))
+                  ((= op 'AL:drop-many) {=>} (AL:drop-many (first argvals) (second argvals) eq-rec?))
+                  ((= op 'AL:filter-by-keys) {=>} (AL:filter-by-keys (first argvals) (second argvals) eq-rec?))
+                  ((= op 'FCL:evalexpr) {=>} (eval-expr (first argvals) (second argvals)))
+                  ((= op 'FCL:reduce) {=>} (reduce (first argvals) (second argvals)))
+		  ((= op 'FCL:call?) {=>} (call? (first argvals)))
+		  ((= op 'static?) {=>} (static? (first argvals) (second argvals)))
+		  ((= op 'gen) {=>} (first argvals))
+                  (T {=>} (list 'ERR 'apply-primop: 'unknow 'operator op '!)))))
+               
+(! evlis-expr (^ (expr-list store)
+                 (if (empty? expr-list)
+                     ()
+                     {else} (; (eval-expr (first expr-list) store)
+                               (evlis-expr (rest expr-list) store)))))
+
+{---------------------------------------------------------------------------------------------------------------}
+{ a teraz garść gnojków Wyłącznie na potrzeby onmixa: }
+
+{ !!!! to nie ten sam static co przy onmixie, nie bierze vs tylko division! }
+
+(! static? (^ (expr div)
+              (? ((= expr ()) {=>} T)
+                 ((# expr) {=>} T)
+                 ((@ expr) {=>} (member? expr div))
+                 ((= (. expr) 'quote) {=>} T)
+                 ((= (. expr) 'gen) {=>} ())
+                 ((= (. expr) 'call) {=>} (stat-env? (, (, expr)) div)) {!}
+                 (T {=>} (stat-list? (, expr) div)))))
+
+(! stat-env? (^ (live div)
+                (if live
+                    (if (member? (first live) div)
+                        (stat-env? (rest live) div)
+                        {else} ())
+                    {else} T)))
+
+(! stat-list? (^ (lst div)
+                 (? ((empty? lst) {=>} T)
+                    ((static? (first lst) div) {=>} (stat-list? (rest lst) div))
+                    (T {=>} ()))))
+
+(! reduce (^ (expr vs)
+             (? ((static? expr (AL:keys vs)) 
+                 {=>} (if (or (@ expr) (not (= (. expr) 'quote)))
+                          (list 'quote (eval-expr expr vs))
+                          {else} expr))
+                ((@ expr) {=>} expr) {,,dynamic var''}
+                (T {=>} (; (. expr) (reduce-list (, expr) vs))))))
+
+(! reduce-list (^ (lst vs)
+                  (if (empty? lst)
+                      ()
+                      {else} (push (reduce (first lst) vs)
+                             (reduce-list (rest lst) vs)))))
+
+{ !!! }
+
+(! LABEL:pp (^ (l) (. l)))
+(! LABEL:vs (^ (l) (, l)))
+{...}
+(! LABEL:eq? (^ (l1 l2)
+                (and (PP:eq? (LABEL:pp l1) (LABEL:pp l2))
+                     (STORE:eq? (LABEL:vs l1) (LABEL:vs l2)))))
+
+
+{---------------------------------------------------------------------------------------------------------------}
+
+{-main-}
+((^ (in _ pr __) (run pr in)) (read) (disp 'INPUT:) (read) (disp 'PROGRAM:) )
