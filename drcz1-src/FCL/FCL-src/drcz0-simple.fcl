@@ -1,0 +1,162 @@
+{-=== drcz0 w fcl*, 2012-11-09 ===-
+
+program to lista, główka to wyrażenie docelowe [,,main''] a ogon to lista definicji pomocnicznych.
+np
+program:=( (apd a b)
+           (! apd (^ (x y)
+                     (if (= x ())
+                         y
+                         (; (. x) (apd (, x) y)))))
+         ), 
+varnames:=(a b),
+varvals:=((1 2) (3 4 5)), daje: 
+Result: (1 2 3 4 5)
+Auf wiedersehen!
+
+nie nadaje się jeszcze do kompilacji przez evlis, ale to Wszystko Można Załatwić cwanym trikiem z A-listami,
+aczkolwiek nie uprzedzajmy faktów! }
+
+((program init-vars init-vals)
+ start
+
+(start (let env (AL:new init-vars init-vals))
+       (let expr (. program))
+       (let defs (, program))       
+       (let env (call process-defs defs env))
+       (let res (call eval expr env))
+       (let r-expr (. res))
+       (let r-env (, res))
+       (return r-expr))
+
+{ interpretacja ciągu definicyj: }
+(process-defs (if (= defs ()) defs-finished process-def))
+
+(process-def (let expr (. defs))
+             (let defs (, defs))
+             (let res (call eval expr env))
+             (let env (, res))
+             (goto process-defs))
+
+(defs-finished (return env))
+
+
+{ ewaluator: }
+(eval (goto check-nil))
+
+(check-nil    (if (= expr ()) do-nil check-num))
+(check-num    (if (# expr) do-num check-sym))
+(check-sym    (if (@ expr) do-sym check-quote))
+(check-quote  (if (= (. expr) 'quote) do-quote check-lambda))
+(check-lambda (if (= (. expr) '^) do-lambda check-eq))
+(check-eq     (if (= (. expr) '=) do-eq check-cons))
+(check-cons   (if (= (. expr) ';) do-cons check-car))
+(check-car    (if (= (. expr) '.) do-car check-cdr))
+(check-cdr    (if (= (. expr) ',) do-cdr check-atom))
+{...}
+(check-atom   (if (= (. expr) '@) do-atom check-if))
+(check-if     (if (= (. expr) 'if) do-if check-label))
+(check-label  (if (= (. expr) '!) do-label check-application))
+(check-application {(if 1 do-application err) } (goto do-application))
+
+(err (return (list 'error 'evaluating expr 'in env)))
+
+(do-nil (return (; () env)))
+
+(do-num (return (; expr env)))
+
+(do-sym (return (; (AL:lookup expr env) env)))
+
+(do-quote (return (; (. (, expr)) env)))
+
+(do-lambda (return (; expr env)))
+
+(do-eq (let a1 (. (, expr)))
+         (let a2 (. (, (, expr))))
+         (let expr a1)
+         (let res (call eval expr env))
+         (let a1 (. res))
+         (let expr a2)
+         (let res (call eval expr env))
+         (let a2 (. res))
+	 (return (; (= a1 a2) env)))
+
+(do-cons (let a1 (. (, expr)))
+         (let a2 (. (, (, expr))))
+         (let expr a1)
+         (let res (call eval expr env))
+         (let a1 (. res))
+         (let expr a2)
+         (let res (call eval expr env))
+         (let a2 (. res))
+	 (return (; (; a1 a2) env)))
+
+(do-car (let a1 (. (, expr)))
+        (let expr a1)
+        (let res (call eval expr env))
+        (let a1 (. res))
+        (return (; (. a1) env)))
+
+(do-cdr (let a1 (. (, expr)))
+        (let expr a1)
+        (let res (call eval expr env))
+        (let a1 (. res))
+        (return (; (, a1) env)))
+
+(do-atom (let a1 (. (, expr)))
+         (let expr a1)
+         (let res (call eval expr env))
+         (let a1 (. res))
+         (return (; (@ a1) env)))
+
+(do-if (let perm (. (, expr)))
+       (let concl (. (, (, expr))))
+       (let alt (. (, (, (, expr)))))
+       (let expr perm)
+       (let res (call eval expr env))
+       (let perm (. res))
+       (if perm do-concl do-alt))
+
+(do-concl (let expr concl)
+          (let res (call eval expr env))
+          (return res))
+
+(do-alt (let expr alt)
+        (let res (call eval expr env))
+        (return res))
+
+(do-label (let var (. (, expr)))
+          (let val (. (, (, expr))))
+          (let expr val)
+          (let res (call eval expr env))
+          (let val (. res))
+          (let env (AL:update {?!} var val env))
+          (return (; val env)))
+
+(do-application (let rator (. expr))
+                (let rands (, expr))
+                (let expr rator)
+                (let res (call eval expr env))
+                (let rator (. res))
+                (let exprs rands)
+                (let argvals (call evlis exprs env))
+                (let argnames (. (, rator)))
+                (let body (. (, (, rator))))
+		(let expr body)
+                (let env (append (AL:new argnames argvals) env))
+                (let res (call eval expr env))
+                (return res))
+           
+{exprs, env -> evexprs}
+(evlis (let evexprs ())
+       (goto evlis-loop))
+
+(evlis-loop (if (= exprs ()) end-evlis evlis-step))
+
+(evlis-step (let expr (. exprs))
+            (let exprs (, exprs))
+            (let res (call eval expr env))
+            (let evexprs (append evexprs (list (. res))))
+            (goto evlis-loop))
+
+(end-evlis (return evexprs))
+)
