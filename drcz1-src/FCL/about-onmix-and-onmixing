@@ -1,0 +1,162 @@
+
+        -= A short note on onmix and on mixing with onmix. Gdańsk 2012-11-10, drcz@o2.pl =- 
+
+Hi.
+
+Basically fcl-onmix.drcz1 implements online partial evaluation algorithm for FCL*<SE> [flowchart language with
+simple recursion, operating over S-expressions] from the marvelous 2011 paper ,,A self-applicable online partial
+evaluator for recursive flowchart languages'' by Robert Glück (only we don't perform polyrec in drcz1 version).
+
+For Futamura projections we also use (mutatis mutandis) Glück's onmix in FCL*.
+
+To get started you need to compile the following tools (you should add the-thing/ directory to your PATH):
+==============================================================================================================
+$ compile fcl-rec-interpreter.drcz1
+$ compile live-var-analysis.drcz1
+$ compile fcl-onmix.drcz1
+$ compile obierak.drcz1
+==============================================================================================================
+We first show how to do things manually. When not debugging or examining the information propagation, one
+could automate this process by using -s[ilent] flag of DRCZ machine and pipes.
+
+Consider the following small fcl* program that calculates power function:
+
+  ((a b)
+   init
+
+   (init (let res 1)
+         (goto test))
+
+   (test (if (= b 0) stop loop))
+ 
+   (loop (let res (* a res))
+         (let b (- b 1))
+         (goto test))
+
+   (stop (return res)) )
+
+One can run it with fcl-rec-interpreter.drcz1:
+==============================================================================================================
+$ DRCZ fcl-rec-interpreter.drcz1.bc 
+Initializing mempool (1048576 cells)...
+Loading code from fcl-rec-interpreter.drcz1.bc...
+Allocating 150 env-slot(s) for environments...
+Running the machine.
+program:
+>((a b)
+ init
+
+ (init (let res 1)
+       (goto test))
+
+ (test (if (= b 0) stop loop))
+ 
+ (loop (let res (* a res))
+       (let b (- b 1))
+       (goto test))
+
+ (stop (return res)) )
+
+input:
+>(2 3)
+Result: 8
+
+Auf wiedersehen!
+==============================================================================================================
+Suppose we would like to specialize it wrt b=3. We need to compute its live-variables map [actually we could
+incorporate live variables analysis into specializer, but they remain separate for ,,historical'' reasons]:
+==============================================================================================================
+$ DRCZ live-var-analysis.drcz1.bc 
+Initializing mempool (1048576 cells)...
+Loading code from live-var-analysis.drcz1.bc...
+Allocating 152 env-slot(s) for environments...
+Running the machine.
+>((a b)
+ init
+
+ (init (let res 1)
+       (goto test))
+
+ (test (if (= b 0) stop loop))
+ 
+ (loop (let res (* a res))
+       (let b (- b 1))
+       (goto test))
+
+ (stop (return res)) )
+
+Result: ((init a b) (test a res b) (loop a res b) (stop res))
+
+Auf wiedersehen!
+==============================================================================================================
+Now we run onmix and supply it with code, division [known variables' names], init-vals [resp.] and live-map:
+==============================================================================================================
+$ DRCZ -p 9000111 fcl-onmix.drcz1.bc
+Initializing mempool (9000111 cells)...
+Loading code from fcl-onmix.drcz1.bc...
+Allocating 170 env-slot(s) for environments...
+Running the machine.
+program:
+>((a b)
+ init
+
+ (init (let res 1)
+       (goto test))
+
+ (test (if (= b 0) stop loop))
+ 
+ (loop (let res (* a res))
+       (let b (- b 1))
+       (goto test))
+
+ (stop (return res)) )
+
+division:
+>(b)
+init-vals:
+>(3)
+livemap:
+>((init a b) (test a res b) (loop a res b) (stop res))
+Result: ((a) (init (b . 3)) ((init (b . 3)) (let res (* a (quote 1))) (let res (* a res)) (let res (* a res)) (return res)))
+
+Auf wiedersehen!
+==============================================================================================================
+The output program uses Cons[program-point-label, store] as labels, we need to replace them with atomic ones
+(in our case, numerals):
+==============================================================================================================
+$ DRCZ obierak.drcz1.bc
+Initializing mempool (1048576 cells)...
+Loading code from obierak.drcz1.bc...
+Allocating 140 env-slot(s) for environments...
+Running the machine.
+>((a) (init (b . 3)) ((init (b . 3)) (let res (* a (quote 1))) (let res (* a res)) (let res (* a res)) (return res)))
+Result: ((a) 0 (0 (let res (* a (quote 1))) (let res (* a res)) (let res (* a res)) (return res)))
+
+Auf wiedersehen!
+==============================================================================================================
+As one can see, it doesn't perform any ,algebraic' simplifications. Nevertheless its outputs can surprise.
+There remain some termination issues, eg when one tries to specialize the power program wrt static a (and
+dynamic b) - these we plan to solve using homeomorphic embedding criterion (,,the Russian whistle'').
+
+We can use onmix for producing [generating!] generating extensions. For example, consider the Ackermann
+function implementation in ack.fcl file. Suppose we would like to get a generating extension for Ackermann
+projections wrt fixed first [m] argument. All we need is to compute live-maps for ack.fcl and onmix.fcl
+(the former one takes a while):
+==============================================================================================================
+$ cat ack.fcl | DRCZ -s live-var-analysis.drcz1.bc > ack-live.tmp
+$ cat onmix.fcl | DRCZ -s live-var-analysis.drcz1.bc > onmix-live.tmp
+==============================================================================================================
+Now we only need to supply [drcz1's] onmix with [fcl*'s] onmix source, proper division (with only init-vals
+dynamic) and the initial values: ack source, (m) division and ack livemap:
+==============================================================================================================
+$ echo "(program division live-map) " > div.tmp
+$ echo "(m) " > div2.tmp
+$ cat onmix.fcl div.tmp lpar ack.fcl div2.tmp ack-live.tmp rpar onmix-live.tmp | DRCZ -sp 9111222 fcl-onmix.drcz1.bc
+==============================================================================================================
+The resulting program, after peeling off with obierak.drcz1, can get executed via fcl-rec-interpreter.drcz1;
+notice that init-vals has list type, therefore arguments list for the extension has list of list type, eg. ((3)).
+
+Some more meta-programming experiments you can find in futamura/ directory. Have fun, good luck!
+
+Yours sincerely,
+d.
