@@ -1,0 +1,37 @@
+DRC<SE> machine we introduced here: http://wacpawstb.blogspot.com/p/blog-page.html
+
+Tu run the machine with given code and initial .R stack:
+=========================================================================================
+$ DRCZ DRCZmachine.drcz1.bc 
+Initializing mempool (1048576 cells)...
+Loading code from DRCZmachine.drcz1.bc...
+Allocating 31 env-slot(s) for environments...
+Running the machine.
+code:
+>(name x lookup x lookup x mul forget x)
+stack:
+>(3)
+(((x . 3)) () ((lookup x lookup x mul forget x)))
+(((x . 3)) (3) ((lookup x mul forget x)))
+(((x . 3)) (3 3) ((mul forget x)))
+(((x . 3)) (9) ((forget x)))
+(() (9) (()))
+Result: 9
+
+Auf wiedersehen!
+=========================================================================================
+
+To compile drcz0 program into DRC<SE> code:
+=========================================================================================
+$ DRCZ drcz0-compiler.drcz1.bc 
+Initializing mempool (1048576 cells)...
+Loading code from drcz0-compiler.drcz1.bc...
+Allocating 30 env-slot(s) for environments...
+Running the machine.
+>( (! sq (^ (x) (* x x)))
+   (+ (sq 2) (sq 3)) )
+Result: (proc (name x lookup x lookup x mul forget x) name sq const 3 lookup sq apply const 2 lookup sq apply add)
+
+Auf wiedersehen!
+=========================================================================================
+Good luck.

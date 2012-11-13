@@ -85,6 +85,9 @@
 	     	((= (.. env) key) {=>} (,. env))
 		(T {=>} (lookup key (, env))))))
 
+
+( (^ (stack _ code __) (run code stack)) (read) (disp 'stack:) (read) (disp 'code:) )
+
 {---------------------------------------------------------------------------------}
 
 { np 
