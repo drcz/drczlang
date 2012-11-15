@@ -6,6 +6,7 @@
 { type EXPR: }
  { Yes, we do use whole SE domain as EXPRs and this should NEVER change, therefore no procedures for this type. }
 
+
 { type PP: (Program Point) }
 (! PP:eq? (^ (p1 p2) (= p1 p2)))
 
@@ -52,7 +53,19 @@
 (! STORE:new    (^ (init-names init-vals) (AL:new init-names init-vals))) { : List<VARIABLE> x List<SE> -> STORE }
 (! STORE:update (^ (var val store) (AL:update var val store VARIABLE:eq?)))  { : VARIABLE x SE x STORE -> STORE }
 (! STORE:lookup (^ (var store) (AL:assoc var store VARIABLE:eq?))) { : VARIABLE x STORE -> SE }
+(! STORE:drop   (^ (var store) (AL:drop var store VARIABLE:eq?))) { : VARIABLE x SE x STORE -> STORE }
 
 (! STORE:varlist (^ (store) (AL:keys store))) { : STORE -> List<VARIABLE> }
 
+(! STORE:eq? (^ (s1 s2) { : STORE x STORE -> Boolean }
+                (? ((= s1 ())
+                    {=>} (= s2 ()))
+                   ((and (eq-rec? (, (first s1)) (STORE:lookup (. (first s1)) s2))
+                         (AL:has-key? (. (first s1)) s2 VARIABLE:eq?)) { sometmes var can point to ()... }
+                    {=>} (STORE:eq? (rest s1) (STORE:drop (. (first s1)) s2)))
+                   (T {=>} ()))))
+
 {---------------------------------------------------------------------------------------------------------------})
+
+         
+          

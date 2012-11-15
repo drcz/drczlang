@@ -41,13 +41,19 @@
                                 (rev (rest pend) (push (first pend) res))))))
                    (rev l ()))))
 }
-(! reverse (^ (l) (rev l ())))
-(! rev (^ (p r) (if p (rev (, p) (; (. p) r)) r)))
+(! reverse (^ (l) (_rev l ())))
+(! _rev (^ (p r) (if p (_rev (, p) (; (. p) r)) r)))
 
 (! nth (^ (n l)
           (if (= n 1)
               (first l)
               {else} (nth (- n 1) (rest l)))))
+
+(! position (^ (el l) (_pos el l 1)))
+(! _pos (^ (el l n)
+   	   (? ((= l ()) {=>} ())
+              ((= el (. l)) {=>} n)
+              (T {=>} (_pos el (, l) (+ n 1))))))
 
 (! map (^ (proc l)
           (if (empty? l)
@@ -69,6 +75,30 @@
            (? ((empty? l) {=>} ())
               ((member? (first l) (rest l)) {=>} (uniq (rest l)))
               (T {=>} (push (first l) (uniq (rest l)))))))
+
+{ a te to w ogóle powinny się nazywać SET:... chyba... pomyślimy potem. }
+
+(! intersect
+   (^ (l1 l2)
+      (if l1
+          (if (member? (first l1) l2)
+              (push (first l1) (intersect (rest l1) l2))
+              {else} (intersect (rest l1) l2))
+          {else} ())))
+
+(! diff
+   (^ (l1 l2)
+      (if l1
+          (if (member? (first l1) l2)
+              (diff (rest l1) l2)
+	      {else} (push (first l1) (diff (rest l1) l2)))
+          {else} ())))
+
+(! subset? (^ (l1 l2)
+              (? ((empty? l1) {=>} T)
+                 ((member? (first l1) l2) {=>} (subset? (rest l1) l2))
+                 (T {=>} ()))))
+      
 
 { sometimes it happens that we want to use member? with more complex "identity [equality] relations" }
 (! memberg? (^ (el l eq?)
@@ -93,7 +123,20 @@
                                (drop-last-element (rest l)))
                          {else} ())))
 
+(! drop (^ (el l)
+           (? ((= l ()) {=>} ())
+              ((= (. l) el) {=>} (, l))
+              (T {=>} (; (. l) (drop el (, l)))))))
+
+(! drop-all (^ (el l)
+               (? ((= l ()) {=>} ())
+                  ((= (. l) el) {=>} (drop-all el (, l)))
+                  (T {=>} (; (. l) (drop-all el (, l)))))))
+
 {= A-LISTs: ==================================================================}
+
+{ uwaga: skumaj, że przecież możnaby z AL zrobić obiekt pełną pizdą - wystarczy żeby new prócz zainicjalizowania dostawał swoją procedurę eq? do kluczy
+  - wtedy każda operacja miast brać argument eq? mogłaby sobie wyłuskiwać z AL odpowiedni porównywacz i przekazywać do ogólnego lookup/add/update... }
 
 (! AL:new (^ (keys vals) (pair keys vals)))
 
@@ -105,6 +148,23 @@
 
 (! AL:add (^ (key val al)
              (push (; key val) al)))
+
+(! AL:has-key? (^ (key al eq?)
+                  (if al
+                      (if (eq? (. (first al)) key)
+                          T
+                          (AL:has-key? key (rest al) eq?))
+                      {else} ())))
+
+(! AL:update-all (^ (al new-val)
+                    (if al
+                        (let ((key {<-} (. (first al)))
+                              (val {<-} (, (first al)))
+                              (ral {<-} (rest al))
+                              (new-val {<~} new-val))
+                             {in} (push (; key (new-val key val))
+                                        (AL:update-all ral new-val)))
+                        {else} ())))
 
 { notice these two take additional argument 'eq?' - a procedure of type ValxVal->Boolean
   settling equivalence of two values. }
@@ -125,5 +185,18 @@
                    {else} (if (eq? key (. (first al)))
                               (, (first al))
                               {else} (AL:assoc key (rest al) eq?)))))
+
+(! AL:drop-many (^ (keys al eq?)
+                   (? ((empty? al) {=>} ())
+                      ((memberg? (. (first al)) keys eq?) {=>} (AL:drop-many keys (rest al) eq?))
+                      (T {=>} (push (first al) (AL:drop-many keys (rest al) eq?))))))
+
+(! AL:filter-by-keys (^ (keys al eq?)
+                        (? ((empty? al)
+                            {=>} ())
+                           ((memberg? (. (first al)) keys eq?)
+                            {=>} (push (first al) (AL:filter-by-keys keys (rest al) eq?)))
+                           (T
+                            {=>} (AL:filter-by-keys keys (rest al) eq?)))))
 
 {=============================================================================} )
