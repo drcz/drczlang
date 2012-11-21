@@ -1,0 +1,206 @@
+{ - greatest consistent subsets of given set of sentences. - }
+
+(include std.drcz1)
+
+{ SETs }
+
+(! SET:empty? (^ (set) (empty? set)))
+
+(! SET:member? (^ (el set) (memberg? el set eq-rec?)))
+
+(! SET:subset? (^ (s1 s2)
+                  (? ((SET:empty? s1) {=>} T)
+                     ((SET:member? (first s1) s2) {=>} (SET:subset? (rest s1) s2))
+                     (T {=>} ()))))
+
+(! SET:equal? (^ (s1 s2) (and (SET:subset? s1 s2) (SET:subset? s2 s1))))
+
+(! SET:diff (^ (s1 s2)
+               (? ((SET:empty? s1) {=>} ())
+                  ((SET:member? (first s1) s2) {=>} (SET:diff (rest s1) s2))
+                  (T {=>} (push (first s1) (SET:diff (rest s1) s2))))))
+
+(! SET:mk-singleton (^ (el) (list el)))
+
+(! SET:drop (^ (el s) (SET:diff s (SET:mk-singleton el))))
+
+
+{ SENTENCEs }
+
+(! SENTENCE:mk-variable (^ (v) (list v)))
+(! SENTENCE:mk-negation (^ (s) (list 'N s)))
+(! SENTENCE:mk-alternative (^ (s1 s2) (list 'A s1 s2)))
+
+{ the rest of connectives can get defined in terms of negation and alternative: }
+(! SENTENCE:mk-conjunction (^ (s1 s2)
+                              (SENTENCE:mk-negation
+                                (SENTENCE:mk-alternative
+                                  (SENTENCE:mk-negation s1)
+                                  (SENTENCE:mk-negation s2)))))
+
+(! SENTENCE:mk-implication (^ (s1 s2)
+                              (SENTENCE:mk-alternative
+                                (SENTENCE:mk-negation s1)
+                                s2)))
+
+(! SENTENCE:mk-equality (^ (s1 s2)
+                           (SENTENCE:mk-conjunction
+                             (SENTENCE:mk-implication s1 s2)
+                             (SENTENCE:mk-implication s2 s1))))
+
+(! SENTENCE:varname (^ (s) (first s)))
+(! SENTENCE:arg1 (^ (s) (second s)))
+(! SENTENCE:arg2 (^ (s) (third s)))
+
+(! SENTENCE:variable? (^ (s) (= (length s) 1)))
+(! SENTENCE:negation? (^ (s) (and (= (length s) 2) (= (first s) 'N))))
+(! SENTENCE:alternative? (^ (s) (and (= (length s) 3) (= (first s) 'A))))
+
+(! SENTENCE:vars (^ (s) (uniq (list-all-vars s)))) { uniq uses =, its okay since we use Symbols for variables }
+
+(! list-all-vars (^ (s)
+                    (? ((SENTENCE:variable? s) {=>} s)
+                       ((SENTENCE:negation? s) {=>} (list-all-vars (SENTENCE:arg1 s)))
+                       ((SENTENCE:alternative? s) {=>} (append (list-all-vars (SENTENCE:arg1 s))
+                                                               (list-all-vars (SENTENCE:arg2 s)))))))
+
+
+{ SENTENCEs polish notation 'parser', eg "(N A p q)" -> "(N (A (p) (q)))": 
+  since its so easy to parse postfix notation, we reverse the prefix one. }
+
+(! SENTENCE:parse (^ (l) (parse-rev-polish (reverse l) ())))
+
+(! parse-rev-polish (^ (toklist stack)
+                       (if toklist
+                           (let ((next {<-} (first toklist))
+                                 (toklist {<-} (rest toklist))
+                                 (stack {<~} stack))
+                                {in} (? ((= next 'N)
+                                         {=>} (parse-rev-polish toklist
+                                                                (push (SENTENCE:mk-negation (first stack))
+                                                                      (rest stack))))
+                                        ((= next 'A)
+                                         {=>} (parse-rev-polish toklist
+                                                                (push (SENTENCE:mk-alternative (first stack)
+                                                                                               (second stack))
+                                                                     (rest (rest stack)))))
+                                        ((= next 'C)
+                                         {=>} (parse-rev-polish toklist
+                                                                (push (SENTENCE:mk-conjunction (first stack)
+                                                                                               (second stack))
+                                                                     (rest (rest stack)))))
+                                        ((= next 'I)
+                                         {=>} (parse-rev-polish toklist
+                                                                (push (SENTENCE:mk-implication (first stack)
+                                                                                               (second stack))
+                                                                     (rest (rest stack)))))
+                                        ((= next 'E)
+                                         {=>} (parse-rev-polish toklist
+                                                                (push (SENTENCE:mk-equality (first stack)
+                                                                                            (second stack))
+                                                                     (rest (rest stack)))))
+                                        (T {=>} (parse-rev-polish toklist (push (SENTENCE:mk-variable next) stack)))
+                                     ))
+                           {else} (first stack))))
+
+(! SENTENCE:write (^ (s)
+                     (? ((SENTENCE:variable? s) {=>} s)
+                        ((SENTENCE:negation? s) {=>} (; 'N (SENTENCE:write (SENTENCE:arg1 s))))
+                        ((SENTENCE:alternative? s) {=>} (; 'A (append (SENTENCE:write (SENTENCE:arg1 s))
+                                                                      (SENTENCE:write (SENTENCE:arg2 s))))))))
+
+
+{ establishing truth-values for complex sentences;
+  bind should be A-list<Symbol->Boolean> mapping each sentence variable to its truth value (T or ()). }
+
+(! SENTENCE:eval (^ (s bind)
+                    (? ((SENTENCE:variable? s) {=>} (lookup (SENTENCE:varname s) bind))
+                       ((SENTENCE:negation? s) {=>} (not (SENTENCE:eval (SENTENCE:arg1 s) bind)))
+                       ((SENTENCE:alternative? s) {=>} (or (SENTENCE:eval (SENTENCE:arg1 s) bind)
+                                                           (SENTENCE:eval (SENTENCE:arg2 s) bind))))))
+
+(! lookup (^ (v bind) (AL:assoc v bind (^ (x y) (= x y)))))
+
+{ matrix method of checking for anti-tautology: }
+
+(! gen-all-bitpatterns (^ (l)
+                          (if (= l 1)
+                              '((()) (T))
+                              {else} (let ((children {<-} (gen-all-bitpatterns (- l 1))))
+                                          {in} (append (map (^ (b) (; T b)) children)
+                                                       (map (^ (b) (; () b)) children))))))
+
+(! gen-all-bindings (^ (vars)
+                       (mapg (^ (bp arg) (pair arg bp))
+                             vars
+                             (gen-all-bitpatterns (length vars)))))
+
+(! SENTENCE:antitautology? (^ (s) (antitautology-test s (gen-all-bindings (SENTENCE:vars s)))))
+
+(! antitautology-test (^ (s bindings)
+   					  	 (? ((empty? bindings) {=>} T)
+						 	((SENTENCE:eval s (first bindings)) {=>} ())
+							(T {=>} (antitautology-test s (rest bindings))))))
+
+
+{ + bonus: }
+(! truth-table (^ (s)
+                  (mapg (^ (b s) (list b (SENTENCE:eval s b)))
+                        s
+                        (gen-all-bindings (SENTENCE:vars s)))))
+
+
+{ assertion: (not (@ ss)) }
+(! big-conjunction (^ (ss)
+                      (if (empty? (rest ss))
+                          (first ss)
+                          {else} (SENTENCE:mk-negation
+                                   (SENTENCE:mk-alternative
+                                     (SENTENCE:mk-negation (first ss))
+                                     (SENTENCE:mk-negation (big-conjunction (rest ss))))))))
+
+{ tadaam: }
+(! consistent? (^ (ss) (not (SENTENCE:antitautology? (big-conjunction ss)))))
+
+
+{ Greatest Consistent Subsets }
+
+(! gcs (^ (ss)
+          (let ((ss {<-} (gather-gcss (list ss) () ())))
+               {in} (trim-subsets ss ss))))
+
+(! gather-gcss (^ (pend checked res)
+                  (? ((empty? pend) {=>} res)
+                     ((memberg? (first pend) checked SET:equal?) {=>} (gather-gcss (rest pend)
+                                                                                   checked
+                                                                                   res))
+                     ((consistent? (first pend)) {=>} (gather-gcss (rest pend)
+                                                                   (push (first pend) checked)
+                                                                   (push (first pend) res)))
+                     (T {=>} (gather-gcss (append (incl-predecessors (first pend))
+                                                  (rest pend))
+                                          (push (first pend) checked)
+                                          res)))))
+
+(! incl-predecessors (^ (set) (mapg (^ (el set) (SET:diff set (SET:mk-singleton el))) set set)))
+
+(! subset-of-any? (^ (s ss)
+                     (? ((SET:empty? ss) {=>} ())
+                        ((SET:subset? s (first ss)) {=>} T)
+                        (T {=>} (subset-of-any? s (rest ss))))))
+
+
+(! trim-subsets (^ (pend ss)
+                   (if pend
+                       (let ((   s {<-} (first pend))
+                             (pend {<-} (rest pend))
+                             (ss {<~} ss))
+                            {in} (if (subset-of-any? s (SET:drop s ss))
+                                     (trim-subsets pend ss)
+                                     {else} (push s (trim-subsets pend ss))))
+                       {else} ())))
+
+
+{-main-}
+(map (^ (x) (map SENTENCE:write x)) (gcs (map SENTENCE:parse (read))))
+

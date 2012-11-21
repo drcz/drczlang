@@ -1,0 +1,91 @@
+( {- quite usefull datastructures -}
+
+{= LISTs: ====================================================================}
+
+{ We use these ones so often, we found no reason to prepend their names with
+  any singature - after all McCarthy called his language LISP for a reason... }
+
+(! empty? (^ (l) (= l ())))
+(! first  (^ (l) (. l)))
+(! second (^ (l) (. (, l))))
+(! third  (^ (l) (. (, (, l)))))
+(! fourth (^ (l) (. (, (, (, l))))))
+(! rest   (^ (l) (, l)))
+(! push   (^ (el l) (; el l)))
+
+(! length (^ (l)
+             (if l (+ 1 (length (rest l))) {else} 0)))
+
+(! append (^ (a b)
+             (if (empty? a)
+                 b
+                 {else} (push (first a) (append (rest a) b)))))
+
+(! pair (^ (a b) (if a (push (; (first a) (first b)) (pair (rest a) (rest b))) {else} ())))
+
+(! reverse (^ (l)
+              (let ((rev {<-} (^ (pend res)
+                                 (if (empty? pend)
+                                     res
+                                     {else}(rev (rest pend) (push (first pend) res))))))
+                   {in} (rev l ()))))
+
+(! nth (^ (n l)
+          (if (= n 1)
+              (first l)
+              {else} (nth (- n 1) (rest l)))))
+
+(! map (^ (proc l)
+          (if (empty? l)
+              ()
+              {else} (push (proc (first l)) (map proc (rest l))))))
+
+{ since drcz1 does not allow to use free variables, we sometimes need an awkward version of map that
+  passes additional arguments to proc: }
+
+{mapg: [Exp x SExp -> SExp] x SExp x List<SExp> -> List<SExp> }
+(! mapg (^ (proc args l) (if l (; (proc (. l) args) (mapg proc args (, l))) ())))
+
+(! member? (^ (el l)
+              (? ((empty? l) {=>} ())
+                 ((= el (first l)) {=>} T)
+                 (T {=>} (member? el (rest l))))))
+
+(! reduce (^ (op neutr l)
+             (if l
+                 (op (. l) (reduce op neutr (, l)))
+                 {else} neutr)))
+
+
+{= A-LISTs: ==================================================================}
+
+(! AL:new (^ (keys vals) (pair keys vals)))
+
+(! AL:keys (^ (al)
+              (if (empty? al)
+                  ()
+                  {else} (push (. (first al))
+                               (AL:keys (rest al))))))
+
+(! AL:add (^ (key val al)
+             (push (; key val) al)))
+
+{ notice these two take additional argument 'eq?' - a procedure of type ValxVal->Boolean
+  settling equivalence of two values. }
+
+(! AL:update (^ (key val al eq?)
+                (if (empty? al)
+                    (AL:add key val ())
+                    {else} (if (eq? (. (first al)) key)
+                               (AL:add key val (, al))
+                               {else} (push (first al)
+                                            (AL:update key val (rest al) eq?))))))
+                    
+(! AL:assoc (^ (key al eq?)
+               (if (empty? al)
+                   (){'ERR}
+                   {else} (if (eq? key (. (first al)))
+                              (, (first al))
+                              {else} (AL:assoc key (rest al) eq?)))))
+
+{=============================================================================} )

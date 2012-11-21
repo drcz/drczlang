@@ -11,32 +11,18 @@
 (! BLOCK-MAP:labels (^ (bm) (AL:keys bm)))
 
 (! LABEL-S:ppname (^ (l) (first l)))
-(! LABEL-S:store  (^ (l) (second l)))
-(! LABEL-S:new    (^ (pp store) (list pp store)))
+(! LABEL-S:store  (^ (l) (rest l)))
+(! LABEL-S:new    (^ (pp store) (; pp store)))
 
 (! LABEL-s:eq?
  (^ (l1 l2)
     (and (PP:eq? (LABEL-S:ppname l1) (LABEL-S:ppname l2))
          (STORE:eq? (LABEL-S:store l1) (LABEL-S:store l2)))))
 
-{ and equality relation on stores: }
-(! STORE:eq? (^ (s1 s2) (and (STORE:include? s1 s2) (STORE:include? s2 s1))))
-
-          (! s-i-check {<-} (^ (vars-to-check s1 s2 vars2)
-                              (? ((empty? vars-to-check) {=>} T)
-                                 ((and (memberg? (first vars-to-check) vars2 (^ (a b) (= a b)))
-                                       (eq-rec? (STORE:lookup (first vars-to-check) s1)
-                                                (STORE:lookup (first vars-to-check) s2)))
-                                  {=>} (s-i-check (rest vars-to-check) s1 s2 vars2))
-                                 (T {=>} ()))))
-
-(! STORE:include?
- (^ (s1 s2)
-    (let ((s1-varlist {<-} (STORE:varlist s1))
-          (s2-varlist {<-} (STORE:varlist s2))
-          (s1 {<~} s1)
-          (s2 {<~} s2))
-         {in} (s-i-check s2-varlist s1 s2 s1-varlist)))) { notice the order of varlists. }
+{- wpierdalamy się z callami :) -}
+(! call? (^ (expr) (and (not (@ expr)) (= (first expr) 'call))))
+(! call-pp (^ (expr) (second expr)))
+(! call-live (^ (expr) (rest (rest expr))))
 
 {---------------------------------------------------------------------------------------------------}
 
@@ -48,7 +34,7 @@
 (! l2n-block
  (^ (block ll)
     (if (, block)
-        (; (. block) (l2n-block (, block) ll))
+        (; (l2n-call (. block) ll) (l2n-block (, block) ll))
         {else} (? ((CMD:if? (. block))
                    {=>} (list (CMD:mk-if (CMD:if-condition (. block))
                                          (label-2-number (CMD:if-then-pp (. block)) ll)
@@ -56,6 +42,14 @@
                   ((CMD:goto? (. block))
                    {=>} (list (CMD:mk-goto (label-2-number (CMD:goto-pp (. block)) ll))))
                   (T {=>} block)))))
+
+(! l2n-call (^ (cmd ll)
+               (if (and (CMD:let? cmd) (call? (CMD:let-expression cmd)))
+                   (list 'let
+                         (CMD:let-variable cmd) (; 'call
+                                                   (; (label-2-number (call-pp (CMD:let-expression cmd)) ll)
+                                                      (call-live (CMD:let-expression cmd)))))
+                   {else} cmd)))
 
 (! conv-all-blocks
  (^ (bm ll)

@@ -1,0 +1,3 @@
+(! wypisz (^ (l) (if l ((^ (l2 dupa) (wypisz l2)) (, l) (disp (. l))) T)))
+(wypisz (read))
+
