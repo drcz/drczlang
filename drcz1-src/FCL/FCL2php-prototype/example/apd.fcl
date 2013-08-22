@@ -1,0 +1,15 @@
+((a b)
+ init
+
+ (init (let res (call apd a b))
+       (return res))
+
+ (apd (if (= a (quote ())) end loop))
+
+ (loop (let next (car a))
+       (let a (cdr a))
+       (let r (call apd a b))
+       (let res (cons next r))
+       (return res))
+
+ (end (return b)))
