@@ -1,0 +1,45 @@
+-------------------------------------------------------------------------------
+Here comes a Post-machine program for adding two numbers in unary system. The
+numbers we represent as sequences of stroke squares (1s) and divide them with
+single blank square (0). We assume the header starting on the left of numbers'
+representation. We use the following procedure:
+  go right seeking the dividing zero,
+  then change it into 1,
+  go right seeking the end of second number,
+  then change its last 1 into 0,
+  then goe back,
+  then ,,bob''.
+
+Eg 3+2 (111+11):
+-------------------------------------------------------------------------------
+$ php5 post-out.php '[[0,"IF",0,3],
+                      [1,"RIGHT"],
+                      [2,"GOTO",0],
+                      [3,"WRITE",1],
+                      [4,"RIGHT"],
+                      [5,"IF",0,8],
+                      [6,"RIGHT"],
+                      [7,"GOTO",5],
+                      [8,"LEFT"],
+                      [9,"WRITE",0],
+                      [10,"IF",0,13],
+                      [11,"LEFT"],
+                      [12,"GOTO",10],
+                      [13,"RIGHT"],
+                      [14,"LEFT"]]'
+                    '[1,1,1,0,1,1]'
+[1,1,1,1,1]
+-------------------------------------------------------------------------------
+ (Instead of writing SExps in json, try sexp2json.scm (remember to give it
+  chmod +x first), eg:
+-------------------------------------------------------------------------------
+$ ./sexp2json.scm 
+(+ (* 7 8) (sine x))
+["+",["*",7,8],["sine","x"]]
+-------------------------------------------------------------------------------
+  or:
+-------------------------------------------------------------------------------
+$ echo "(+ (* 7 8) (sine x))" | ./sexp2json.scm 
+["+",["*",7,8],["sine","x"]]
+-------------------------------------------------------------------------------
+ .)
